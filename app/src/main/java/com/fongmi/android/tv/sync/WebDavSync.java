@@ -3,6 +3,7 @@ package com.fongmi.android.tv.sync;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.util.AtomicFile;
+import android.os.FileObserver;
 
 import androidx.annotation.NonNull;
 import androidx.room.InvalidationTracker;
@@ -49,6 +50,7 @@ public final class WebDavSync {
     private volatile boolean reloadPending;
     private volatile String status = "尚未同步";
     private SharedPreferences.OnSharedPreferenceChangeListener preferenceListener;
+    private FileObserver cloudFilesObserver;
 
     public static WebDavSync get() { return INSTANCE; }
     public SharedPreferences preferences() { return App.get().getSharedPreferences("webdav", 0); }
@@ -60,9 +62,16 @@ public final class WebDavSync {
     public void init() {
         if (!com.fongmi.android.tv.BuildConfig.FLAVOR.equals("leanback")) return;
         preferenceListener = (prefs, key) -> {
-            if (!applying && ("config_0".equals(key) || "config_1".equals(key))) changed(false);
+            if (!applying && ("config_0".equals(key) || "config_1".equals(key) || CloudConfig.PREFS.contains(key == null ? "" : key) || CloudConfig.DEFAULT_PREFS.contains(key == null ? "" : key))) changed(false);
         };
         Prefers.getPrefers().registerOnSharedPreferenceChangeListener(preferenceListener);
+        App.get().getSharedPreferences("spUtils", 0).registerOnSharedPreferenceChangeListener(preferenceListener);
+        cloudFilesObserver = new FileObserver(App.get().getFilesDir().getAbsolutePath(), FileObserver.CLOSE_WRITE | FileObserver.MOVED_TO | FileObserver.DELETE) {
+            @Override public void onEvent(int event, String path) {
+                if (!applying && path != null && CloudConfig.FILES.contains(path)) changed(false);
+            }
+        };
+        cloudFilesObserver.startWatching();
         worker.execute(() -> {
             try {
                 load();
@@ -208,6 +217,11 @@ public final class WebDavSync {
                     return;
                 }
                 store.validate(finalValue);
+                SyncDocument.Entry cloud = finalValue.records.get(CloudConfig.ID);
+                if (cloud != null && !java.util.Objects.equals(new CloudConfigStore().capture(), cloud.deleted ? null : cloud.value)) {
+                    try { backup(); }
+                    catch (IOException e) { throw new IllegalStateException("网盘配置备份失败，已停止应用同步", e); }
+                }
                 try { write(pendingFile(scope), gson.toJson(finalValue)); }
                 catch (IOException e) { throw new IllegalStateException(e); }
                 store.apply(finalValue);
@@ -231,7 +245,8 @@ public final class WebDavSync {
         for (Config c : AppDatabase.get().getConfigDao().findAll()) if (c.getType() <= 1)
             text.append(c.getType()).append(c.getUrl()).append(c.getHome());
         return text.append(Prefers.getString("config_0")).append(Prefers.getString("config_1"))
-                .append(gson.toJson(AppDatabase.get().getSiteDao().findAll())).toString();
+                .append(gson.toJson(AppDatabase.get().getSiteDao().findAll()))
+                .append(SyncDocument.identity(gson.toJson(new CloudConfigStore().capture()))).toString();
     }
 
     private void reloadIfSafe() {
@@ -262,6 +277,8 @@ public final class WebDavSync {
                 value.document.validate();
             } catch (Exception e) { throw new IOException("本地同步状态损坏，已停止同步以保护数据"); }
         }
+        // 升级旧版本的错误观测，不把“配套文件仍存在”生成账号删除标记。
+        CloudConfig.migrate(value);
         replica = value; scope = target;
         File pendingApply = pendingFile(target);
         if (pendingApply.exists() || new File(pendingApply.getPath() + ".bak").exists()) {

@@ -66,6 +66,7 @@ public final class SyncDocument {
             throw new IllegalArgumentException("同步文件格式无效，未修改本地数据");
         }
         d.validate();
+        CloudConfig.discardBootstrap(d);
         return d;
     }
 

@@ -18,7 +18,7 @@ import java.util.TreeMap;
 
 /** 显式列出跨平台字段，数据库编号、配置缓存及设备设置留在本机。 */
 public final class SyncStore {
-    public static final Set<String> KINDS = Set.of("source", "history", "favorite", "site", "preference");
+    public static final Set<String> KINDS = Set.of("source", "history", "favorite", "site", "preference", CloudConfig.KIND);
     public static final class Values {
         public final Map<String, JsonObject> values = new TreeMap<>();
         public final Map<String, String> kinds = new TreeMap<>();
@@ -89,6 +89,8 @@ public final class SyncStore {
             v.addProperty("url", url);
             result.put("preference", v, "preference", "activeSource" + type);
         }
+        JsonObject cloud = new CloudConfigStore().capture();
+        if (cloud != null) result.put(CloudConfig.KIND, cloud, CloudConfig.KIND, CloudConfig.ADAPTER);
         return result;
     }
 
@@ -109,6 +111,11 @@ public final class SyncStore {
                 JsonObject v = e.value;
                 String expected;
                 switch (e.kind) {
+                    case CloudConfig.KIND: {
+                        CloudConfig.validate(v);
+                        expected = CloudConfig.ID;
+                        break;
+                    }
                     case "source": {
                         int type = v.get("type").getAsInt();
                         if (type < 0 || type > 1 || str(v, "url").isEmpty()) throw new IllegalArgumentException();
@@ -256,6 +263,7 @@ public final class SyncStore {
             editor.putString("config_" + type, url);
         }
         if (!editor.commit()) throw new IllegalStateException("设置保存失败，请重试同步");
+        new CloudConfigStore().apply(document);
     }
 
     private static boolean active(SyncDocument d, String id) {

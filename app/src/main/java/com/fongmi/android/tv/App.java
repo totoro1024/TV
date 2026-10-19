@@ -10,12 +10,16 @@ import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.HandlerCompat;
+import androidx.core.os.LocaleListCompat;
 
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.hook.Hook;
 import com.github.catvod.Init;
 import com.google.gson.Gson;
+
+import java.util.Locale;
 
 public class App extends Application implements Application.ActivityLifecycleCallbacks {
 
@@ -81,6 +85,9 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onCreate() {
         super.onCreate();
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
+        // 应用默认使用简体中文，不依赖电视或手机的系统语言。
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("zh-CN"));
         Notify.createChannel();
         registerActivityLifecycleCallbacks(this);
         com.fongmi.android.tv.sync.WebDavSync.get().init();

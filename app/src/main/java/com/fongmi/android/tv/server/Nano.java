@@ -62,6 +62,9 @@ public class Nano extends NanoHTTPD {
     public Response serve(IHTTPSession session) {
         String url = session.getUri().trim();
         Map<String, String> files = new HashMap<>();
+        // 扫码凭据使用独立会话，先验证令牌和长度，再读取请求体。
+        if (url.startsWith(com.fongmi.android.tv.server.process.WebDavInput.PATH))
+            return com.fongmi.android.tv.server.process.WebDavInput.get().doResponse(session, url, files);
         if (session.getMethod() == Method.POST) parse(session, files);
         if (url.startsWith("/tvbus")) return ok(LiveConfig.getResp());
         if (url.startsWith("/device")) return ok(Device.get().toString());

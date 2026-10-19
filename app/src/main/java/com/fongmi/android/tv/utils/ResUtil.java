@@ -2,6 +2,8 @@ package com.fongmi.android.tv.utils;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import java.util.Locale;
 import android.content.res.TypedArray;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -94,16 +96,23 @@ public class ResUtil {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, getDisplayMetrics());
     }
 
+    // 只为文字创建中文资源；屏幕宽度、密度仍使用原始应用上下文，兼容 AutoSize。
+    private static Resources textResources() {
+        Configuration config = new Configuration();
+        config.setLocale(Locale.SIMPLIFIED_CHINESE);
+        return App.get().createConfigurationContext(config).getResources();
+    }
+
     public static String getString(@StringRes int resId) {
-        return App.get().getResources().getString(resId);
+        return textResources().getString(resId);
     }
 
     public static String getString(@StringRes int resId, Object... formatArgs) {
-        return App.get().getResources().getString(resId, formatArgs);
+        return textResources().getString(resId, formatArgs);
     }
 
     public static String[] getStringArray(@ArrayRes int resId) {
-        return App.get().getResources().getStringArray(resId);
+        return textResources().getStringArray(resId);
     }
 
     public static TypedArray getTypedArray(@ArrayRes int resId) {

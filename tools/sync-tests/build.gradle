@@ -6,6 +6,7 @@ sourceSets {
         srcDir '../../app/src/playerCompat/java'
         include 'androidx/media3/exoplayer/libass/LibassFontFile.java'
         include 'com/fongmi/android/tv/sync/SyncDocument.java'
+        include 'com/fongmi/android/tv/sync/CloudConfig.java'
         include 'com/fongmi/android/tv/sync/SyncReplica.java'
         include 'com/fongmi/android/tv/sync/SyncEngine.java'
         include 'com/fongmi/android/tv/sync/WebDavClient.java'

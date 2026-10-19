@@ -21,8 +21,8 @@ android {
         applicationId "com.fongmi.android.tv.webdav"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 56303
-        versionName playerCompat ? "5.6.3-webdav.2-compat" : "5.6.3-webdav.2"
+        versionCode 56307
+        versionName playerCompat ? "5.6.3-webdav.6-compat" : "5.6.3-webdav.6"
         buildConfigField "boolean", "PLAYER_COMPAT", playerCompat.toString()
         javaCompileOptions {
             annotationProcessorOptions {
