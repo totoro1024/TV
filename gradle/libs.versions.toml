@@ -1,6 +1,7 @@
 [versions]
 agp = "9.3.1"
 python = "17.0.0"
+media3 = "1.11.0"
 minSdk = "24"
 targetSdk = "37"
 compileSdk = "37"
@@ -53,6 +54,11 @@ zxingAndroidEmbedded = "4.3.0"
 zxingCore = "3.5.4"
 
 [libraries]
+media3-container = { group = "androidx.media3", name = "media3-container", version.ref = "media3" }
+media3-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
+media3-dash = { group = "androidx.media3", name = "media3-exoplayer-dash", version.ref = "media3" }
+media3-rtsp = { group = "androidx.media3", name = "media3-exoplayer-rtsp", version.ref = "media3" }
+media3-smoothstreaming = { group = "androidx.media3", name = "media3-exoplayer-smoothstreaming", version.ref = "media3" }
 annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }

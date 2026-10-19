@@ -43,7 +43,7 @@ public class PlayerSetting {
     }
 
     public static boolean isLibass() {
-        return Prefers.getBoolean("player_libass", true);
+        return !com.fongmi.android.tv.BuildConfig.PLAYER_COMPAT && Prefers.getBoolean("player_libass", true);
     }
 
     public static void putLibass(boolean libass) {

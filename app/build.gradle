@@ -6,9 +6,11 @@ plugins {
 }
 
 def localProps = new Properties()
-rootProject.file('local.properties').withInputStream {
-    localProps.load(it)
+if (rootProject.file('local.properties').exists()) {
+    rootProject.file('local.properties').withInputStream { localProps.load(it) }
 }
+def hasReleaseKey = localProps['storeFile'] != null
+def playerCompat = providers.gradleProperty('playerCompat').map { it.toBoolean() }.getOrElse(false)
 
 android {
     namespace = 'com.fongmi.android.tv'
@@ -16,11 +18,12 @@ android {
     compileSdk libs.versions.compileSdk.get().toInteger()
 
     defaultConfig {
-        applicationId "com.fongmi.android.tv"
+        applicationId "com.fongmi.android.tv.webdav"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 563
-        versionName "5.6.3"
+        versionCode 56307
+        versionName playerCompat ? "5.6.3-webdav.6-compat" : "5.6.3-webdav.6"
+        buildConfigField "boolean", "PLAYER_COMPAT", playerCompat.toString()
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]
@@ -39,6 +42,8 @@ android {
         }
     }
 
+    sourceSets.main.java.srcDir(playerCompat ? "src/playerCompat/java" : "src/playerFull/java")
+
     buildFeatures {
         buildConfig = true
         viewBinding = true
@@ -46,7 +51,7 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(localProps['storeFile'])
+            if (hasReleaseKey) storeFile file(localProps['storeFile'])
             keyAlias localProps['keyAlias']
             keyPassword localProps['storePassword']
             storePassword localProps['storePassword']
@@ -57,7 +62,7 @@ android {
         release {
             minifyEnabled = true
             shrinkResources = true
-            signingConfig = signingConfigs.release
+            if (hasReleaseKey) signingConfig = signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules-media.pro'
         }
     }
@@ -86,7 +91,17 @@ android {
 AbiApkPackaging.configure(project, SingleArtifact.APK.INSTANCE)
 
 dependencies {
-    implementation fileTree(dir: "libs", include: ["*.aar"])
+    if (playerCompat) {
+        // 本地 AAR 不携带 Maven 传递依赖；容器解析模块与播放器基线保持同版本。
+        implementation(libs.media3.container) { transitive = false }
+        // 按需反射加载的流媒体模块也必须显式提供，排除已由定制 AAR 提供的 Media3 模块。
+        implementation(libs.media3.hls) { exclude group: "androidx.media3" }
+        implementation(libs.media3.dash) { exclude group: "androidx.media3" }
+        implementation(libs.media3.rtsp) { exclude group: "androidx.media3" }
+        implementation(libs.media3.smoothstreaming) { exclude group: "androidx.media3" }
+    }
+    testImplementation libs.junit
+    implementation fileTree(dir: "libs", include: ["*.aar"], exclude: playerCompat ? ["lib-exoplayer-libass-*.aar"] : [])
     implementation project(':catvod')
     implementation project(':chaquo')
     implementation project(':quickjs')

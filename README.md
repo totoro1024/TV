@@ -6,6 +6,14 @@
 
 [使用與開發指南](https://fongmi.github.io/TV/) · [討論群組](https://t.me/fongmi_official)
 
+## WebDAV 同步分支
+
+本分支增加电视端 WebDAV 同步：观看记录、播放进度、收藏、影视源、直播源及选定偏好。设置中提供立即同步、自动同步、覆盖远端、覆盖本地、拉取合并与清空远端，按同源同影片标识合并，删除会传播至其他设备。首次使用请先保存配置并测试连接。
+
+支持 HTTP；同步数据不额外加密。配套 iOS 应用属于后续阶段，当前仅定义共享数据格式。兼容测试版 APK 已可通过 `-PplayerCompat=true` 构建，保留 MPV 和普通 Exo，暂不支持 Exo libass/双字幕；[构建方法与依赖来源](docs/player-compat-build.md)。完整播放器配置仍需匹配的新接口依赖，详见 [验证状态](docs/webdav-sync-validation.md)、[设计](docs/webdav-sync-design.md)及[同步协议](docs/webdav-sync-protocol.md)。
+
+独立协议测试：`bash gradlew -p tools/sync-tests test`。
+
 ## 開始使用
 
 1. 安裝適合裝置的 APK：`leanback` 為電視版，`mobile` 為手機版；依 Android 系統支援的 ABI 選擇 `arm64-v8a` 或 `armeabi-v7a`。最低需求為 Android 7.0（API 24）。

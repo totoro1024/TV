@@ -10,12 +10,16 @@ import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.HandlerCompat;
+import androidx.core.os.LocaleListCompat;
 
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.hook.Hook;
 import com.github.catvod.Init;
 import com.google.gson.Gson;
+
+import java.util.Locale;
 
 public class App extends Application implements Application.ActivityLifecycleCallbacks {
 
@@ -81,8 +85,12 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onCreate() {
         super.onCreate();
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE);
+        // 应用默认使用简体中文，不依赖电视或手机的系统语言。
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("zh-CN"));
         Notify.createChannel();
         registerActivityLifecycleCallbacks(this);
+        com.fongmi.android.tv.sync.WebDavSync.get().init();
     }
 
     @Override
@@ -98,6 +106,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
         if (activity != activity()) this.activity = activity;
+        com.fongmi.android.tv.sync.WebDavSync.get().activityResumed(activity);
     }
 
     @Override
@@ -107,10 +116,12 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     @Override
     public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {
+        com.fongmi.android.tv.sync.WebDavSync.get().activityCreated(activity);
     }
 
     @Override
     public void onActivityDestroyed(@NonNull Activity activity) {
+        com.fongmi.android.tv.sync.WebDavSync.get().activityDestroyed(activity);
     }
 
     @Override

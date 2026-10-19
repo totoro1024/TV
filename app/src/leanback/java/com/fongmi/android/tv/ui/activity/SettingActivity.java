@@ -76,7 +76,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.vodUrl.setText(VodConfig.getDesc());
         mBinding.liveUrl.setText(LiveConfig.getDesc());
         mBinding.wallUrl.setText(WallConfig.getDesc());
-        mBinding.versionText.setText(BuildConfig.VERSION_NAME);
+        mBinding.versionText.setText(BuildConfig.VERSION_NAME + (BuildConfig.PLAYER_COMPAT ? "（兼容测试版）" : ""));
         setCacheText();
         setOtherText();
     }
@@ -98,6 +98,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     @Override
     protected void initEvent() {
+        mBinding.webdav.setOnClickListener(v -> startActivity(new Intent(this, WebDavActivity.class)));
         mBinding.vod.setOnClickListener(this::onVod);
         mBinding.doh.setOnClickListener(this::setDoh);
         mBinding.live.setOnClickListener(this::onLive);

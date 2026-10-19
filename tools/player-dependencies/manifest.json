@@ -1,0 +1,111 @@
+{
+  "repository": "oinsilos/myfp",
+  "commit": "78268fa2ef9c120b884e67ffdc8707b9e87702e0",
+  "files": [
+    {
+      "file": "lib-common-release.aar",
+      "sha256": "7c5490180f876416d23a66015881529224a49864088b7a4018b6abf9ca7f4c1e",
+      "bytes": 665080
+    },
+    {
+      "file": "lib-database-release.aar",
+      "sha256": "c404d6677065cd4acbb6330bda153052f0bfe3a069232ae5a6aec504d76c9b75",
+      "bytes": 7210
+    },
+    {
+      "file": "lib-datasource-okhttp-release.aar",
+      "sha256": "519ddd14e1663fa1aff3cf753eefce6dad7f809c9969e3c1087f0ecc6c4bcd0c",
+      "bytes": 9848
+    },
+    {
+      "file": "lib-datasource-release.aar",
+      "sha256": "1182dd5f19895166ae250937d2c493beb4fe82372d3b44f3b1b4531adb5b96aa",
+      "bytes": 182234
+    },
+    {
+      "file": "lib-datasource-rtmp-release.aar",
+      "sha256": "a7c7587813ee2f1948b344f92969b563e77931bd865c1ca51c179e7bf466b8c7",
+      "bytes": 4157
+    },
+    {
+      "file": "lib-decoder-av1-release.aar",
+      "sha256": "9f1c47ea4c2ade1b289cbe9da678c18e44e74fc0f3e06018903a40514c85f26c",
+      "bytes": 14113
+    },
+    {
+      "file": "lib-decoder-ffmpeg-release.aar",
+      "sha256": "8d035ff4bd22a2943230e8783055d28af09cce169aa13ce66c1abca34b859aac",
+      "bytes": 22291743
+    },
+    {
+      "file": "lib-decoder-flac-release.aar",
+      "sha256": "2bf9379cc8bffafd9e97fd820ab590098ddec087cd9a84350ef89c6f07e0a34d",
+      "bytes": 21025
+    },
+    {
+      "file": "lib-decoder-iamf-release.aar",
+      "sha256": "f3bf66f9f039bae7fc498c2b33a8c7c51bf5e70f40ffccbc99a2e54d04a1406b",
+      "bytes": 13217
+    },
+    {
+      "file": "lib-decoder-mpegh-release.aar",
+      "sha256": "6d0d44327433e730901d4d24804f91140a437e1f42761aafbbb4e77cf7fdae5d",
+      "bytes": 1349695
+    },
+    {
+      "file": "lib-decoder-opus-release.aar",
+      "sha256": "f4eb46effd7ebe18829a98cbdc8338ef4b3a555def022d2eb3c190b7c98802bd",
+      "bytes": 10429
+    },
+    {
+      "file": "lib-decoder-release.aar",
+      "sha256": "ebd49dcc9040e1ac2b2d89b4139459f6f48d75113878dd270cae1b717f794afa",
+      "bytes": 19805
+    },
+    {
+      "file": "lib-decoder-vp9-release.aar",
+      "sha256": "538c2b9a00fb1b8964b80028262e6642855bf06ccec44a5168d5077ea078e3aa",
+      "bytes": 9503
+    },
+    {
+      "file": "lib-effect-release.aar",
+      "sha256": "931c3f1e317d82295941cea88f5d5eb2a1732f151f0e7a6562d51ae890c81879",
+      "bytes": 402776
+    },
+    {
+      "file": "lib-exoplayer-release.aar",
+      "sha256": "1d8ec91a9bf0b836ee5f85541d664b150e81f81d0b86c578b0d7d0f59970f9a8",
+      "bytes": 1789922
+    },
+    {
+      "file": "lib-extractor-release.aar",
+      "sha256": "bf2a1b78960bab021af2ee44c561e6b8a29d19b0047b1ab77a30800242a023dd",
+      "bytes": 1099264
+    },
+    {
+      "file": "lib-mpvplayer-release.aar",
+      "sha256": "12e5e33db38443923424adcfbba41aa109267114b0f307e39217a211abc37e28",
+      "bytes": 18486012
+    },
+    {
+      "file": "lib-session-release.aar",
+      "sha256": "3b98d0856a0dd0004039e836610639e8dd15aa07ed964ab12995c0703d152045",
+      "bytes": 954671
+    },
+    {
+      "file": "lib-ui-danmaku-release.aar",
+      "sha256": "049a959a0150a6c0d500c04e98a9b835ffc4c399fe3b93eb9d36f29f46c43fb7",
+      "bytes": 116597
+    },
+    {
+      "file": "lib-ui-leanback-release.aar",
+      "sha256": "b53d7c28b540aba2fa1b37b156fa6a58a5d2664ed38e565162a3f7cb7006d214",
+      "bytes": 6741
+    },
+    {
+      "file": "lib-ui-release.aar",
+      "sha256": "f172c997207c81acd3b460f0bd4c2e33cc0541057db7baeaa092d813f5910d5c",
+      "bytes": 368829
+    }
+  ]
+}

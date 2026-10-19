@@ -1,0 +1,28 @@
+name: WebDAV sync protocol tests
+on:
+  push:
+    branches: [feature/webdav-sync]
+  pull_request:
+    paths:
+      - 'app/src/main/java/com/fongmi/android/tv/sync/**'
+      - 'app/src/test/java/com/fongmi/android/tv/sync/**'
+      - 'tools/sync-tests/**'
+      - '.github/workflows/webdav-sync-tests.yml'
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash gradlew -p tools/sync-tests test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webdav-sync-test-results
+          path: tools/sync-tests/build/reports/tests/test

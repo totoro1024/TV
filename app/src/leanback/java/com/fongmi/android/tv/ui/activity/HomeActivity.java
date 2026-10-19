@@ -299,6 +299,16 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     }
 
     private void clearHistory() {
+        if (com.fongmi.android.tv.sync.WebDavSync.get().configured()) {
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle("清空观看记录")
+                    .setMessage("将清空当前影视源的观看记录；下次同步时删除会传播到其他设备。")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("确认清空", (dialog, which) -> clearHistoryConfirmed()).show();
+        } else clearHistoryConfirmed();
+    }
+
+    private void clearHistoryConfirmed() {
         mAdapter.removeItems(getHistoryIndex(), 1);
         History.clear(VodConfig.getCid());
         mPresenter.setDelete(false);
