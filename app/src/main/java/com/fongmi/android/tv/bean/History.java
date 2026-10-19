@@ -375,6 +375,7 @@ public class History implements Diffable<History> {
         if (flags.isEmpty()) return;
         setVodFlag(flags.get(0).getFlag());
         if (!flags.get(0).getEpisodes().isEmpty()) setVodRemarks(flags.get(0).getEpisodes().get(0).getName());
+        if (com.fongmi.android.tv.sync.WebDavSync.get().configured()) return;
         for (History item : findByName(getVodName())) {
             if (getPosition() >= 0) break;
             for (Flag flag : flags) {

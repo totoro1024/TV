@@ -98,6 +98,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     @Override
     protected void initEvent() {
+        mBinding.webdav.setOnClickListener(v -> startActivity(new Intent(this, WebDavActivity.class)));
         mBinding.vod.setOnClickListener(this::onVod);
         mBinding.doh.setOnClickListener(this::setDoh);
         mBinding.live.setOnClickListener(this::onLive);

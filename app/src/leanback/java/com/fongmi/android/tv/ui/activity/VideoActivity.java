@@ -1293,6 +1293,8 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     private void onPaused() {
         controller().pause();
+        saveHistory(false);
+        com.fongmi.android.tv.sync.WebDavSync.get().requestAuto();
     }
 
     private void onPlay() {

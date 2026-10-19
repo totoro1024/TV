@@ -83,6 +83,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
         super.onCreate();
         Notify.createChannel();
         registerActivityLifecycleCallbacks(this);
+        com.fongmi.android.tv.sync.WebDavSync.get().init();
     }
 
     @Override
@@ -98,6 +99,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
         if (activity != activity()) this.activity = activity;
+        com.fongmi.android.tv.sync.WebDavSync.get().activityResumed(activity);
     }
 
     @Override
@@ -107,10 +109,12 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     @Override
     public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {
+        com.fongmi.android.tv.sync.WebDavSync.get().activityCreated(activity);
     }
 
     @Override
     public void onActivityDestroyed(@NonNull Activity activity) {
+        com.fongmi.android.tv.sync.WebDavSync.get().activityDestroyed(activity);
     }
 
     @Override

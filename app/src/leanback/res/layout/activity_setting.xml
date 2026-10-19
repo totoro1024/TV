@@ -12,6 +12,17 @@
         android:orientation="vertical"
         android:padding="24dp">
 
+        <Button
+            android:id="@+id/webdav"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/selector_item"
+            android:focusable="true"
+            android:text="WebDAV 跨设备同步"
+            android:textColor="@color/white"
+            android:textSize="18sp" />
+
         <androidx.appcompat.widget.LinearLayoutCompat
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

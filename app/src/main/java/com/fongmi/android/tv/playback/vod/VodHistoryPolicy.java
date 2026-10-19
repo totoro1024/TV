@@ -19,7 +19,7 @@ public class VodHistoryPolicy {
         History history = History.find(key);
         history = history == null ? create(key, item) : history;
         if (!TextUtils.isEmpty(mark)) history.setVodRemarks(mark);
-        if (Setting.isIncognito()) history.delete();
+        // 无痕观看不删除已存在的同步历史。
         history.setVodName(item.getName());
         return history;
     }
@@ -41,7 +41,9 @@ public class VodHistoryPolicy {
         if (history == null || !history.canSave() || Setting.isIncognito()) return;
         History copy = copyForSave(history);
         Task.executeSerial(() -> {
-            copy.merge().save();
+            if (com.fongmi.android.tv.sync.WebDavSync.get().configured()) copy.save();
+            else copy.merge().save();
+            if (exit) com.fongmi.android.tv.sync.WebDavSync.get().requestAuto();
             if (exit) RefreshEvent.history();
         });
     }
