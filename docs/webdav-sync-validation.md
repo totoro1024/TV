@@ -2,7 +2,7 @@
 
 ## 当前交付状态
 
-Android 电视端同步功能已实现，尚不能交付可安装 APK。完整工程构建在 Java 编译阶段被缺少的定制播放器依赖阻断，不应将协议测试通过描述为 APK、电视 UI 或真机功能验证通过。
+Android 电视端 WebDAV 兼容测试版 APK 已构建并完成签名检查，详见 [兼容版构建](player-compat-build.md)。完整播放器配置仍受缺失的新接口依赖限制；APK 构建和单元测试通过不等于电视 UI 或真机功能验证通过。
 
 ## 自动化验证
 
@@ -14,19 +14,21 @@ bash gradlew -p tools/sync-tests test
 
 该独立 JVM 测试工程复用生产的 SyncDocument、SyncReplica、SyncEngine、WebDavClient 源文件；不依赖上游缺失的播放器 AAR。测试使用隔离的本机 HTTP WebDAV 模拟服务，不连接用户的真实服务，也不读取用户凭据。
 
-本机测试结果：30 项通过、0 失败、0 跳过。
+本机测试结果：34 项通过、0 失败、0 跳过（30 项同步/HTTP 测试及 4 项兼容版字体解析测试）。Android 工程与独立 JVM 工程均执行同一套用例。
 
 覆盖：跨平台 UTF-8 身份向量、最近观看与回看、确定性合并、删除与重新添加、未知字段保留、条件写入冲突、无条件写入服务拒绝、连接探测清理、损坏及超限文件拒绝。两副本操作测试覆盖双向合并、单向拉取不上传、覆盖两端、清空后重建、重置确认、文件意外丢失、播放时覆盖拦截、请求期间编辑保留。
 
 另提供只读权限的 GitHub Actions 工作流示例 `docs/examples/webdav-sync-tests.yml`，可执行同一套协议测试，不构建 APK。当前 GitHub 令牌缺少 workflow 权限，示例未安装到 .github/workflows，尚无云端 CI 结果。
 
-## 完整工程构建
+## 完整播放器配置的构建限制
 
 执行：
 
 ```sh
 bash gradlew :app:assembleLeanbackDebug :app:testLeanbackDebugUnitTest
 ```
+
+以下为不带 `-PplayerCompat=true` 时的限制；兼容版构建已成功。
 
 本机已具备 JDK 21（Gradle toolchain）、Android SDK 37 和 Python 3.10。构建到 `:app:compileLeanbackDebugJavaWithJavac` 时失败：`androidx.media3.common`、`androidx.media3.ui.danmaku.DanmakuPlayerViewController` 等定制播放器类缺失。上游 README 的构建说明指出 `lib-*.aar` 未纳入 Git，单纯 clone 不包含完整播放器依赖。
 

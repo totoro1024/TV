@@ -75,7 +75,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, B
         mBinding.mpvVulkan.setVisibility(vulkan ? View.VISIBLE : View.GONE);
         mBinding.mpvGpuNext.setVisibility(exo ? View.GONE : View.VISIBLE);
         mBinding.adblock.setVisibility(exo ? View.VISIBLE : View.GONE);
-        mBinding.libass.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.libass.setVisibility(exo && !com.fongmi.android.tv.BuildConfig.PLAYER_COMPAT ? View.VISIBLE : View.GONE);
         mBinding.buffer.setVisibility(exo ? View.VISIBLE : View.GONE);
     }
 

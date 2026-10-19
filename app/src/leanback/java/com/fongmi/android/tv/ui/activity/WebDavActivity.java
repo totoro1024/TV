@@ -48,6 +48,7 @@ public class WebDavActivity extends AppCompatActivity {
         scroll.addView(content);
         setContentView(scroll);
         label("WebDAV 跨设备同步", 24);
+        if (com.fongmi.android.tv.BuildConfig.PLAYER_COMPAT) label("兼容测试版：支持 MPV 与普通 Exo；Exo 的 libass 和双字幕暂不可用。", 18);
         label("共享观看记录、进度、收藏、影视源和直播源。每位用户使用独立目录；应用会在所填地址下创建 fongmi-sync-v1。", 16);
         SharedPreferences prefs = sync.preferences();
         url = field("服务器目录地址（HTTP / HTTPS）", prefs.getString("url", ""), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
