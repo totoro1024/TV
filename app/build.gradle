@@ -21,8 +21,8 @@ android {
         applicationId "com.fongmi.android.tv.webdav"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 56302
-        versionName playerCompat ? "5.6.3-webdav.1-compat" : "5.6.3-webdav.1"
+        versionCode 56303
+        versionName playerCompat ? "5.6.3-webdav.2-compat" : "5.6.3-webdav.2"
         buildConfigField "boolean", "PLAYER_COMPAT", playerCompat.toString()
         javaCompileOptions {
             annotationProcessorOptions {
@@ -91,6 +91,15 @@ android {
 AbiApkPackaging.configure(project, SingleArtifact.APK.INSTANCE)
 
 dependencies {
+    if (playerCompat) {
+        // 本地 AAR 不携带 Maven 传递依赖；容器解析模块与播放器基线保持同版本。
+        implementation(libs.media3.container) { transitive = false }
+        // 按需反射加载的流媒体模块也必须显式提供，排除已由定制 AAR 提供的 Media3 模块。
+        implementation(libs.media3.hls) { exclude group: "androidx.media3" }
+        implementation(libs.media3.dash) { exclude group: "androidx.media3" }
+        implementation(libs.media3.rtsp) { exclude group: "androidx.media3" }
+        implementation(libs.media3.smoothstreaming) { exclude group: "androidx.media3" }
+    }
     testImplementation libs.junit
     implementation fileTree(dir: "libs", include: ["*.aar"], exclude: playerCompat ? ["lib-exoplayer-libass-*.aar"] : [])
     implementation project(':catvod')

@@ -14,7 +14,7 @@ bash gradlew -p tools/sync-tests test
 
 该独立 JVM 测试工程复用生产的 SyncDocument、SyncReplica、SyncEngine、WebDavClient 源文件；不依赖上游缺失的播放器 AAR。测试使用隔离的本机 HTTP WebDAV 模拟服务，不连接用户的真实服务，也不读取用户凭据。
 
-本机测试结果：34 项通过、0 失败、0 跳过（30 项同步/HTTP 测试及 4 项兼容版字体解析测试）。Android 工程与独立 JVM 工程均执行同一套用例。
+本机独立 JVM 测试 34 项通过（30 项同步/HTTP 及 4 项字体解析）；Android 工程另加入 2 项播放器依赖回归，共 36 项通过，均为 0 失败、0 跳过。
 
 覆盖：跨平台 UTF-8 身份向量、最近观看与回看、确定性合并、删除与重新添加、未知字段保留、条件写入冲突、无条件写入服务拒绝、连接探测清理、损坏及超限文件拒绝。两副本操作测试覆盖双向合并、单向拉取不上传、覆盖两端、清空后重建、重置确认、文件意外丢失、播放时覆盖拦截、请求期间编辑保留。
 
@@ -40,7 +40,7 @@ bash gradlew :app:assembleLeanbackDebug :app:testLeanbackDebugUnitTest
 
 - Android 电视上的界面、遥控器焦点、Room 持久化与生命周期的端到端行为。
 - 用户实际 HTTP WebDAV 服务是否支持强 ETag 和 If-Match/If-None-Match。
-- 两台真实设备上的播放、断网重试、突然断电恢复与源切换。
+- 两台真实设备上的播放、断网重试、突然断电恢复与源切换。单台 MuMu 的 MP4/HLS 播放已验证，见 [播放修复记录](playback-crash-fix.md)。
 - iOS 客户端：本阶段仅完成跨平台格式和固定身份样例，未开发 iOS 应用。
 
 ## 使用与构建说明
