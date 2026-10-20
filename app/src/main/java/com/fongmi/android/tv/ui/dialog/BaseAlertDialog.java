@@ -14,6 +14,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 public abstract class BaseAlertDialog extends DialogFragment {
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (getDialog() != null) com.fongmi.android.tv.server.process.RemoteInput.attach(getDialog().getWindow());
+    }
+
     protected abstract ViewBinding getBinding();
 
     protected abstract MaterialAlertDialogBuilder getBuilder();

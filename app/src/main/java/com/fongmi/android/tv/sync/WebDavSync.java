@@ -40,8 +40,11 @@ public final class WebDavSync {
     private final ScheduledThreadPoolExecutor worker = new ScheduledThreadPoolExecutor(1);
     private final Gson gson = new Gson();
     private final SyncStore store = new SyncStore();
-    private SyncReplica replica;
+    private volatile SyncReplica replica;
+    private volatile boolean deferredApply;
     private String scope;
+    private WebDavClient cachedClient;
+    private String clientIdentity;
     private long lastAttempt;
     private ScheduledFuture<?> pending;
     private volatile boolean applying;
@@ -55,6 +58,17 @@ public final class WebDavSync {
     public static WebDavSync get() { return INSTANCE; }
     public SharedPreferences preferences() { return App.get().getSharedPreferences("webdav", 0); }
     public String status() { return status; }
+    public String deliveryStatus() {
+        SyncReplica value = replica;
+        return value == null ? "正在读取本地同步状态…" : value.deliveryText(busy, configured(), preferences().getBoolean("auto", false), deferredApply);
+    }
+    private String lastSuccessKey() {
+        return "lastSuccess." + SyncDocument.identity(preferences().getString("url", ""), preferences().getString("user", ""));
+    }
+    public String lastSuccessText() {
+        long timestamp = preferences().getLong(lastSuccessKey(), 0);
+        return timestamp > 0 ? new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.SIMPLIFIED_CHINESE).format(new Date(timestamp)) : "尚未成功同步";
+    }
     public boolean busy() { return busy; }
     public boolean configured() { return !preferences().getString("url", "").trim().isEmpty(); }
     public boolean paused() { return preferences().getBoolean("paused", false); }
@@ -75,9 +89,9 @@ public final class WebDavSync {
         worker.execute(() -> {
             try {
                 load();
-                AppDatabase.get().getInvalidationTracker().addObserver(new InvalidationTracker.Observer("History", "Keep", "Config", "Site") {
+                AppDatabase.get().getInvalidationTracker().addObserver(new InvalidationTracker.Observer("History", "EpisodeProgressRecord", "Keep", "Config", "Site") {
                     @Override public void onInvalidated(@NonNull Set<String> tables) {
-                        if (!applying) changed(tables.size() == 1 && tables.contains("History"));
+                        if (!applying) changed(tables.stream().allMatch(table -> table.equals("History") || table.equals("EpisodeProgressRecord")));
                     }
                 });
                 capture();
@@ -97,7 +111,7 @@ public final class WebDavSync {
         if (isPlayback(activity)) { playbackActivities = Math.max(0, playbackActivities - 1); requestAuto(); }
     }
     public void activityResumed(Activity activity) {
-        if (!isPlayback(activity)) reloadIfSafe();
+        if (!isPlayback(activity)) { reloadIfSafe(); requestAuto(); }
     }
     private boolean isPlayback(Activity activity) {
         return "VideoActivity".equals(activity.getClass().getSimpleName()) || "LiveActivity".equals(activity.getClass().getSimpleName());
@@ -116,10 +130,20 @@ public final class WebDavSync {
         }
     }
 
+    /** 播放界面创建前拉取最新进度，避免播放器先读取旧的本地续播位置。 */
+    public void beforePlayback(Runnable open) {
+        if (!configured() || !preferences().getBoolean("auto", false)) { App.post(open); return; }
+        worker.execute(() -> {
+            try { load(); applyDeferredIfSafe(); capture(); autoSync(); }
+            catch (Exception e) { failed(e); }
+            finally { App.post(open); }
+        });
+    }
+
     public void requestAuto() {
         if (!configured()) return;
         worker.schedule(() -> {
-            try { load(); capture(); autoSync(); }
+            try { load(); applyDeferredIfSafe(); capture(); autoSync(); }
             catch (Exception e) { failed(e); }
         }, 1000, TimeUnit.MILLISECONDS);
     }
@@ -131,11 +155,17 @@ public final class WebDavSync {
     }
 
     public void saveSettings(String url, String user, String password, boolean auto, Consumer<String> result) {
+        saveSettings(url, "", user, password, auto, result);
+    }
+
+    public void saveSettings(String serverUrl, String userDirectory, String user, String password, boolean auto, Consumer<String> result) {
         worker.execute(() -> {
             try {
+                String url = WebDavClient.directoryAddress(serverUrl, userDirectory);
                 new WebDavClient(url, user, password); // 保存前先校验地址。
                 if (!preferences().edit().putString("url", url.trim()).putString("user", user)
-                        .putString("password", password).putBoolean("auto", auto).commit())
+                        .putString("password", password).putString("serverUrl", serverUrl.trim())
+                        .putString("userDirectory", userDirectory.trim()).putBoolean("auto", auto).commit())
                     throw new IOException("配置保存失败");
                 load(); capture();
                 status = replica.paused ? "同步已暂停，请选择重置后的处理方式" : "配置已保存";
@@ -153,6 +183,20 @@ public final class WebDavSync {
         });
     }
 
+    /** 用户完成网盘登录后主动同步一次，不受日常自动同步开关或 60 秒节流影响。 */
+    public void afterCloudLogin() {
+        if (!configured()) {
+            com.fongmi.android.tv.utils.Notify.show("登录已保存；尚未配置 WebDAV，请到设置中配置同步。");
+            return;
+        }
+        if (paused()) {
+            com.fongmi.android.tv.utils.Notify.show("登录已保存；WebDAV 已暂停，请先在同步设置中处理。");
+            return;
+        }
+        com.fongmi.android.tv.utils.Notify.show("登录已保存，正在同步网盘配置…");
+        run(Operation.SYNC, message -> com.fongmi.android.tv.utils.Notify.show("网盘登录同步：" + message));
+    }
+
     public void run(Operation operation, Consumer<String> result) {
         worker.execute(() -> {
             busy = true;
@@ -163,7 +207,12 @@ public final class WebDavSync {
     }
 
     private WebDavClient client() throws IOException {
-        return new WebDavClient(preferences().getString("url", ""), preferences().getString("user", ""), preferences().getString("password", ""));
+        String url = preferences().getString("url", ""), user = preferences().getString("user", ""), password = preferences().getString("password", "");
+        String identity = SyncDocument.identity(url, user, password);
+        if (cachedClient == null || !identity.equals(clientIdentity)) {
+            cachedClient = new WebDavClient(url, user, password); clientIdentity = identity;
+        }
+        return cachedClient;
     }
 
     private void execute(Operation operation) throws Exception {
@@ -179,7 +228,11 @@ public final class WebDavSync {
             @Override public void install(SyncDocument doc) throws IOException { WebDavSync.this.install(doc); }
             @Override public void save() throws IOException { WebDavSync.this.save(); }
             @Override public void pause(String message) throws IOException { WebDavSync.this.pause(message); }
-            @Override public void success(String message) { WebDavSync.this.success(message); }
+            @Override public void success(String message) {
+                if (operation != Operation.ACCEPT_RESET)
+                    preferences().edit().putLong(lastSuccessKey(), System.currentTimeMillis()).apply();
+                WebDavSync.this.success(message);
+            }
             @Override public void applyMerged(SyncDocument doc, boolean replacing) throws IOException {
                 installMerged(doc, replacing);
             }
@@ -212,8 +265,14 @@ public final class WebDavSync {
                     finalValue = SyncDocument.merge(latest, value);
                 }
                 if (playbackActivities > 0 && !replacing) {
-                    // 先暂存云端记录，保留正在播放的源与观看数据。
+                    // 收藏立即生效，其他云端记录留待安全时机应用。
+                    store.validate(finalValue);
+                    try { write(pendingFile(scope), gson.toJson(finalValue)); }
+                    catch (IOException e) { throw new IllegalStateException(e); }
+                    deferredApply = true;
+                    store.applyFavoritesDuringPlayback(finalValue);
                     replica.receive(finalValue);
+                    replica.setObserved(store.capture().values);
                     return;
                 }
                 store.validate(finalValue);
@@ -225,11 +284,12 @@ public final class WebDavSync {
                 try { write(pendingFile(scope), gson.toJson(finalValue)); }
                 catch (IOException e) { throw new IllegalStateException(e); }
                 store.apply(finalValue);
+                deferredApply = false;
                 replica.receive(finalValue);
                 replica.setObserved(store.capture().values);
             });
             save();
-            new AtomicFile(pendingFile(scope)).delete();
+            if (!deferredApply) new AtomicFile(pendingFile(scope)).delete();
             reloadPending |= !before.equals(sourceFingerprint());
             App.post(() -> { RefreshEvent.history(); RefreshEvent.keep(); reloadIfSafe(); });
         } catch (Exception e) {
@@ -271,7 +331,7 @@ public final class WebDavSync {
         SyncReplica value = new SyncReplica();
         if (f.exists() || new File(f.getPath() + ".bak").exists()) {
             try {
-                value = gson.fromJson(new String(new AtomicFile(f).readFully(), StandardCharsets.UTF_8), SyncReplica.class);
+                value = SyncReplica.parse(new String(new AtomicFile(f).readFully(), StandardCharsets.UTF_8));
                 if (value == null || value.document == null || value.observed == null || value.acknowledgedEpoch == null)
                     throw new IllegalStateException();
                 value.document.validate();
@@ -280,13 +340,19 @@ public final class WebDavSync {
         // 升级旧版本的错误观测，不把“配套文件仍存在”生成账号删除标记。
         CloudConfig.migrate(value);
         replica = value; scope = target;
-        File pendingApply = pendingFile(target);
-        if (pendingApply.exists() || new File(pendingApply.getPath() + ".bak").exists()) {
-            SyncDocument staged = SyncDocument.parse(new String(new AtomicFile(pendingApply).readFully(), StandardCharsets.UTF_8));
-            install(staged);
-        }
+        deferredApply = pendingFile(target).exists() || new File(pendingFile(target).getPath() + ".bak").exists();
+        applyDeferredIfSafe();
         preferences().edit().putBoolean("paused", replica.paused).apply();
         status = replica.paused ? "同步已暂停，请选择重置后的处理方式" : preferences().getString("status", "尚未同步");
+    }
+
+    private void applyDeferredIfSafe() throws IOException {
+        if (!deferredApply || playbackActivities > 0) return;
+        SyncDocument staged = SyncDocument.parse(new String(new AtomicFile(pendingFile(scope)).readFully(), StandardCharsets.UTF_8));
+        // 强退前已落库但尚未捕获的播放进度也必须参与合并。
+        capture();
+        boolean replacing = "replace".equals(staged.mode) && !staged.epoch.equals(replica.acknowledgedEpoch);
+        installMerged(staged, replacing);
     }
 
     private String device() {
@@ -341,6 +407,10 @@ public final class WebDavSync {
         persistStatus();
     }
     private void failed(Exception e) {
+        if (replica != null) {
+            replica.retryNeeded = true;
+            if (scope != null) try { save(); } catch (IOException ignored) { }
+        }
         // 状态及日志中不包含异常 URL、服务器正文、源内容或登录凭据。
         Throwable root = e;
         while (root.getCause() != null) root = root.getCause();

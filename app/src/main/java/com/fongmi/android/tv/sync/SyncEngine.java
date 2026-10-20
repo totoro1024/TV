@@ -50,7 +50,7 @@ public final class SyncEngine {
                 }
                 replica.acceptedReset = value.reset;
                 local.install(value); replica.paused = false;
-                local.save(); local.success("已从云端重新开始"); return;
+                checkpoint(replica.localRevision); local.success("已从云端重新开始"); return;
             }
             boolean forcePush = operation == Operation.PUSH || operation == Operation.REBUILD;
             if (!forcePush && (incoming == null && !replica.acknowledgedEpoch.isEmpty()
@@ -59,18 +59,19 @@ public final class SyncEngine {
                 return;
             }
             local.capture();
+            long uploadedRevision = replica.localRevision;
             if (forcePush) {
                 local.backup();
                 SyncDocument replacement = local.snapshot(); replacement.mode = "replace";
                 if (incoming != null) replacement.reset = incoming.reset;
                 try { dav.write(replacement, remote); }
                 catch (WebDavClient.Conflict e) { continue; }
-                replica.receive(replacement); replica.acceptedReset = replacement.reset; replica.paused = false; local.save();
+                replica.receive(replacement); replica.acceptedReset = replacement.reset; replica.paused = false; checkpoint(uploadedRevision);
                 local.success("已用本机数据覆盖远端"); return;
             }
             if (operation == Operation.PULL) {
                 if (incoming == null) throw new IOException("云端没有同步数据");
-                local.backup(); local.install(incoming); local.success("已用云端数据覆盖本地"); return;
+                local.backup(); local.install(incoming); checkpoint(uploadedRevision); local.success("已用云端数据覆盖本地"); return;
             }
             SyncDocument current = replica.document.copy();
             boolean replace = incoming != null && "replace".equals(incoming.mode)
@@ -79,7 +80,7 @@ public final class SyncEngine {
             if (incoming == null) incoming = current.copy();
             else if (!replace) current.epoch = incoming.epoch;
             SyncDocument combined = replace ? incoming.copy() : SyncDocument.merge(current, incoming);
-            if (operation != Operation.MERGE) {
+            if (operation != Operation.MERGE && (remote.document == null || !new com.google.gson.Gson().toJsonTree(combined).equals(new com.google.gson.Gson().toJsonTree(remote.document)))) {
                 try { dav.write(combined, remote); }
                 catch (WebDavClient.Conflict e) { continue; }
             }
@@ -89,6 +90,8 @@ public final class SyncEngine {
             final SyncDocument uploaded = combined;
             final boolean replacing = replace;
             local.applyMerged(uploaded, replacing);
+            if (operation != Operation.MERGE) checkpoint(uploadedRevision);
+            else { replica.retryNeeded = false; local.save(); }
 
             local.success(operation == Operation.MERGE ? "已拉取合并（未上传）" : "同步成功");
             return;
@@ -96,4 +99,11 @@ public final class SyncEngine {
         throw new IOException("其他设备正在更新云端，已保留本地数据，请稍后重试");
     }
 
+    private void checkpoint(long revision) throws Exception {
+        SyncReplica replica = local.replica();
+        long previous = replica.uploadedRevision; boolean retry = replica.retryNeeded;
+        replica.acknowledge(revision);
+        try { local.save(); }
+        catch (Exception e) { replica.uploadedRevision = previous; replica.retryNeeded = retry; throw e; }
+    }
 }

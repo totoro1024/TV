@@ -22,6 +22,15 @@ public class SyncEngineTest {
     @After public void stop() { server.stop(); }
 
     private void run(MemoryLocal local, SyncEngine.Operation op) throws Exception { new SyncEngine(client, local).run(op); }
+    @Test public void idleChecksUse304AndNeverRewriteRemote() throws Exception {
+        tv.put("a", 1); run(tv, SyncEngine.Operation.SYNC);
+        run(tv, SyncEngine.Operation.SYNC);
+        int writes = server.writes;
+        run(tv, SyncEngine.Operation.SYNC);
+        assertEquals(writes, server.writes); assertTrue(server.notModified > 0);
+        phone.put("new", 2); run(phone, SyncEngine.Operation.SYNC);
+        run(tv, SyncEngine.Operation.SYNC); assertTrue(tv.values.containsKey(id("new")));
+    }
     @Test public void firstJoinMergesBothDevicesAndDeletionPropagates() throws Exception {
         tv.put("a", 1); phone.put("b", 2);
         run(tv, SyncEngine.Operation.SYNC); run(phone, SyncEngine.Operation.SYNC); run(tv, SyncEngine.Operation.SYNC);
@@ -90,12 +99,32 @@ public class SyncEngineTest {
         phone.duringApply = () -> phone.put("just-edited", 2);
         run(phone, SyncEngine.Operation.SYNC);
         assertTrue(phone.values.containsKey(id("just-edited")));
+        assertTrue(phone.replica.pendingUpload());
         run(phone, SyncEngine.Operation.SYNC); run(tv, SyncEngine.Operation.SYNC);
         assertTrue(tv.values.containsKey(id("just-edited")));
+        assertFalse(phone.replica.pendingUpload());
+    }
+    @Test public void failedExitUploadSurvivesRestartAndIsAcknowledgedOnlyAfterRetry() throws Exception {
+        tv.put("progress", 120); server.failWrites = true;
+        try { run(tv, SyncEngine.Operation.SYNC); fail("必须模拟上传失败"); } catch (IOException expected) { }
+        assertTrue(tv.replica.pendingUpload());
+        MemoryLocal restarted = new MemoryLocal("tv");
+        restarted.replica = SyncReplica.parse(new com.google.gson.Gson().toJson(tv.replica));
+        restarted.values = new TreeMap<>(tv.values);
+        assertTrue(restarted.replica.pendingUpload());
+        server.failWrites = false; run(restarted, SyncEngine.Operation.SYNC);
+        assertFalse(restarted.replica.pendingUpload());
+        assertEquals(120, client.read().document.records.get(id("progress")).value.get("n").getAsInt());
+    }
+    @Test public void pullMergeDoesNotAcknowledgePendingUploads() throws Exception {
+        tv.put("remote",1); run(tv, SyncEngine.Operation.SYNC);
+        phone.put("local",2); run(phone, SyncEngine.Operation.MERGE);
+        assertTrue(phone.replica.pendingUpload());
+        run(phone, SyncEngine.Operation.SYNC); assertFalse(phone.replica.pendingUpload());
     }
     private static String id(String key) { return SyncDocument.identity("test", key); }
     private static class MemoryLocal implements SyncEngine.Local {
-        final SyncReplica replica = new SyncReplica(); final String device;
+        SyncReplica replica = new SyncReplica(); final String device;
         Map<String, JsonObject> values = new TreeMap<>(); long now = System.currentTimeMillis(); int backups; boolean playing; Runnable duringApply;
         MemoryLocal(String device) { this.device = device; }
         void put(String key, int value) { JsonObject obj = new JsonObject(); obj.addProperty("n", value); values.put(id(key), obj); }

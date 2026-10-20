@@ -49,4 +49,11 @@ public class Migrations {
             database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_Track_key_type` ON `Track` (`key`, `type`)");
         }
     };
+    public static final Migration MIGRATION_35_36 = new Migration(35, 36) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS EpisodeProgressRecord (`key` TEXT NOT NULL, `historyKey` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`), FOREIGN KEY(`historyKey`) REFERENCES History(`key`) ON UPDATE NO ACTION ON DELETE CASCADE)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_EpisodeProgressRecord_historyKey ON EpisodeProgressRecord (`historyKey`)");
+        }
+    };
 }

@@ -899,8 +899,22 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onRefreshEvent(RefreshEvent event) {
         switch (event.getType()) {
+            case KEEP -> refreshKeepGroup();
             case LIVE -> setLive(getHome());
             case PLAYER -> mLive.refresh();
+        }
+    }
+
+    private void refreshKeepGroup() {
+        if (mGroupAdapter == null || mGroupAdapter.getItemCount() == 0 || !getKeep().isKeep()) return;
+        Group keep = getKeep();
+        keep.getChannel().clear();
+        LiveConfig.get().applyKeepsToGroups(mGroupAdapter.unmodifiableList());
+        keep.setPosition(Math.max(0, Math.min(keep.getPosition(), keep.getChannel().size() - 1)));
+        if (mGroup != null && mGroup.isKeep()) {
+            mChannelAdapter.addAll(setWidth(keep).getChannel());
+            if (mChannel != null) mChannelAdapter.setSelected(mChannel);
+            if (keep.isEmpty()) mBinding.group.requestFocus();
         }
     }
 

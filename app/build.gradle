@@ -21,8 +21,8 @@ android {
         applicationId "com.fongmi.android.tv.webdav"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 56307
-        versionName playerCompat ? "5.6.3-webdav.6-compat" : "5.6.3-webdav.6"
+        versionCode 56314
+        versionName playerCompat ? "5.6.3-webdav.13-compat" : "5.6.3-webdav.13"
         buildConfigField "boolean", "PLAYER_COMPAT", playerCompat.toString()
         javaCompileOptions {
             annotationProcessorOptions {
@@ -76,6 +76,10 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
     lint {
         disable 'UnsafeOptInUsageError'
         disable 'ExpiredTargetSdkVersion'
@@ -101,6 +105,7 @@ dependencies {
         implementation(libs.media3.smoothstreaming) { exclude group: "androidx.media3" }
     }
     testImplementation libs.junit
+    testImplementation "org.robolectric:robolectric:4.16.1"
     implementation fileTree(dir: "libs", include: ["*.aar"], exclude: playerCompat ? ["lib-exoplayer-libass-*.aar"] : [])
     implementation project(':catvod')
     implementation project(':chaquo')

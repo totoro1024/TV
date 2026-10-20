@@ -14,6 +14,7 @@ public class QualityAdapter extends RecyclerView.Adapter<QualityAdapter.ViewHold
     private final OnClickListener listener;
     private Result result;
     private int position;
+    private int nextFocusDown;
 
     public QualityAdapter(OnClickListener listener) {
         this.listener = listener;
@@ -23,6 +24,11 @@ public class QualityAdapter extends RecyclerView.Adapter<QualityAdapter.ViewHold
     public interface OnClickListener {
 
         void onItemClick(Result result);
+    }
+
+    public void setNextFocusDown(int id) {
+        nextFocusDown = id;
+        notifyDataSetChanged();
     }
 
     public int getPosition() {
@@ -48,6 +54,7 @@ public class QualityAdapter extends RecyclerView.Adapter<QualityAdapter.ViewHold
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         holder.binding.text.setText(result.getUrl().n(position));
+        holder.binding.text.setNextFocusDownId(nextFocusDown);
         holder.binding.text.setOnClickListener(v -> onItemClick(position));
         holder.binding.text.setSelected(result.getUrl().getPosition() == position);
     }

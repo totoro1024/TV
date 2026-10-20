@@ -32,6 +32,7 @@ public abstract class BaseActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(getBinding().getRoot());
+        com.fongmi.android.tv.server.process.RemoteInput.attach(getWindow());
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
         Util.hideSystemUI(this);

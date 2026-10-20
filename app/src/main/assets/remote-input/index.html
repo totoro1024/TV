@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>电视手机输入</title>
+<style>
+body{font:17px system-ui;background:#171b23;color:#fff;max-width:560px;margin:32px auto;padding:0 22px}h1{font-size:26px}p{color:#bdc5d3;line-height:1.6}textarea,input,button{box-sizing:border-box;width:100%;font:inherit;padding:14px;border-radius:10px;border:1px solid #687080;background:#242b36;color:#fff;margin:8px 0}textarea{min-height:150px;resize:vertical}button{background:#d9e8ff;color:#142238;cursor:pointer}button:disabled{opacity:.45}#switch{background:transparent;color:#d9e8ff}label{display:block;margin-top:24px}#message{min-height:30px;color:#e8d49c}a{color:#bdc5ff}
+</style>
+<h1>电视手机输入</h1>
+<p>收藏本页，下次直接打开。手机和电视需连接同一局域网；电视地址变化后需重新扫码。</p>
+<label id="target" for="text">正在连接电视…</label>
+<textarea id="text" placeholder="在这里输入内容" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="16384"></textarea>
+<input id="secret" type="password" placeholder="输入密码" autocomplete="off" maxlength="16384" hidden>
+<button id="send" disabled>发送到电视</button>
+<button id="switch" hidden>切换到电视当前输入框（清空草稿）</button>
+<p id="message" role="status" aria-live="polite"></p>
+<p>发送后在电视上确认、保存或搜索。此页面不读取电视已保存的内容。连接地址可控制文字输入，请勿分享；在电视上长按二维码可重置连接。局域网 HTTP 传输，请在可信网络使用。</p>
+<a href="/">打开搜索、播放推送和遥控器</a>
+<script>
+const base=location.pathname.replace(/\/$/,'');
+const text=document.getElementById('text'),secret=document.getElementById('secret'),target=document.getElementById('target'),send=document.getElementById('send'),message=document.getElementById('message'),change=document.getElementById('switch');
+let state=null,draft=null,busy=false;
+function field(){return secret.hidden?text:secret}
+function render(){const changed=draft&&state&&draft!==state.revision;target.textContent=state?state.title:'电视暂未连接';send.disabled=busy||!state||!state.ready||!!changed;change.hidden=!changed;}
+function adopt(){text.value='';secret.value='';draft=null;secret.hidden=!state?.password;text.hidden=!!state?.password;message.textContent='';render();}
+for(const el of [text,secret])el.addEventListener('input',()=>{if(!draft&&state)draft=state.revision;render();});
+change.onclick=adopt;
+async function poll(){try{const r=await fetch(base+'/state',{cache:'no-store'});if(!r.ok)throw Error(r.status===403?'连接已重置，请重新扫描电视二维码。':'电视暂未连接');const next=await r.json();state=next;if(!draft){secret.hidden=!state.password;text.hidden=!!state.password;}render();}catch(e){state=null;message.textContent=e.message||'无法连接，请检查电视和网络';render();}}
+send.onclick=async()=>{if(!state||!state.ready||busy)return;const expected=draft||state.revision;if(expected!==state.revision)return;busy=true;render();try{const r=await fetch(base+'/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({text:field().value,revision:expected})});const result=await r.text();message.textContent=result;if(r.ok&&result.startsWith('已发送')){text.value='';secret.value='';draft=null;}}catch(e){message.textContent='发送结果未确认，请先查看电视再决定是否重试';}finally{busy=false;await poll();render();}};
+poll();setInterval(()=>{if(!busy)poll();},1500);
+</script></html>

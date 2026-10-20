@@ -1,0 +1,30 @@
+[
+  {
+    "镜像": "xiaocge.fun",
+    "HTTP": 502
+  },
+  {
+    "镜像": "2xiaopan.fun",
+    "HTTP": 502
+  },
+  {
+    "镜像": "feimao666.fun",
+    "失败": "URLError"
+  },
+  {
+    "镜像": "tv.yydsys.top",
+    "失败": "URLError"
+  },
+  {
+    "镜像": "www.miqk.cc",
+    "HTTP": 502
+  },
+  {
+    "镜像": "mihdr.top",
+    "失败": "URLError"
+  },
+  {
+    "镜像": "xiaomi666.fun",
+    "HTTP": 502
+  }
+]

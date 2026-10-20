@@ -8,8 +8,8 @@
 
     <FrameLayout
         android:id="@+id/video"
-        android:layout_width="400dp"
-        android:layout_height="225dp"
+        android:layout_width="356dp"
+        android:layout_height="200dp"
         android:layout_margin="24dp"
         android:background="@color/black"
         android:defaultFocusHighlightEnabled="false"
@@ -236,7 +236,7 @@
                 android:id="@+id/flag"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingStart="24dp"
@@ -248,7 +248,7 @@
                 android:id="@+id/quality"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingStart="24dp"
@@ -257,23 +257,23 @@
                 tools:visibility="visible" />
 
             <androidx.leanback.widget.HorizontalGridView
-                android:id="@+id/episode"
+                android:id="@+id/array"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingStart="24dp"
                 android:paddingEnd="24dp"
                 android:visibility="gone" />
 
-            <androidx.leanback.widget.HorizontalGridView
-                android:id="@+id/array"
+            <com.fongmi.android.tv.ui.custom.EpisodeGridView
+                android:id="@+id/episode"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:clipChildren="false"
-                android:clipToPadding="false"
+                android:layout_height="154dp"
+                android:layout_marginBottom="8dp"
+                android:clipChildren="true"
+                android:clipToPadding="true"
                 android:paddingStart="24dp"
                 android:paddingEnd="24dp"
                 android:visibility="gone" />
@@ -282,7 +282,7 @@
                 android:id="@+id/part"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingStart="24dp"
@@ -293,7 +293,7 @@
                 android:id="@+id/quick"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="8dp"
                 android:clipChildren="false"
                 android:clipToPadding="false"
                 android:paddingStart="24dp"

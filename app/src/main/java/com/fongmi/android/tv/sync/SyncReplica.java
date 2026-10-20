@@ -1,6 +1,7 @@
 package com.fongmi.android.tv.sync;
 
 import com.google.gson.JsonObject;
+import com.google.gson.Gson;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -12,6 +13,38 @@ public final class SyncReplica {
     public String acknowledgedEpoch = "";
     public boolean paused;
     public String acceptedReset = "";
+    // 仅保存在本机，不加入 WebDAV 协议。成功仅确认本次请求涵盖的本机版本。
+    public volatile long localRevision;
+    public volatile long uploadedRevision = -1;
+    public volatile boolean retryNeeded;
+    public boolean pendingUpload() { return localRevision > uploadedRevision; }
+    public void acknowledge(long revision) {
+        uploadedRevision = Math.max(uploadedRevision, Math.min(revision, localRevision));
+        retryNeeded = false;
+    }
+    public String deliveryText(boolean busy, boolean configured, boolean automatic, boolean deferred) {
+        if (!configured) return "未配置";
+        if (busy) return "同步中…";
+        if (paused) return "同步已暂停";
+        if (retryNeeded) return automatic ? "同步失败，等待重试" : "同步失败，等待手动重试";
+        if (pendingUpload()) return automatic ? "待同步" : "待同步（自动同步已关闭）";
+        return deferred ? "已同步，云端进度将在退出播放后应用" : "已同步";
+    }
+
+    static SyncReplica parse(String json) {
+        JsonObject root = new Gson().fromJson(json, JsonObject.class);
+        if (root != null && !root.has("document") && root.has("a") && root.get("a").isJsonObject() &&
+                root.has("b") && root.get("b").isJsonObject() && SyncDocument.string(root, "c") &&
+                root.has("d") && root.get("d").isJsonPrimitive() && root.get("d").getAsJsonPrimitive().isBoolean() &&
+                SyncDocument.string(root, "e") && SyncDocument.number(root, "f")) {
+            root = SyncDocument.rename(root, new String[][]{{"a","document"},{"b","observed"},{"c","acknowledgedEpoch"},{"d","paused"},{"e","acceptedReset"},{"f","clock"}});
+            root.add("document", SyncDocument.canonicalize(root.getAsJsonObject("document")));
+        }
+        if (root == null || !root.has("document") || !root.has("observed") || !root.has("acknowledgedEpoch"))
+            throw new IllegalArgumentException("本地同步状态格式无效");
+        root.add("document", SyncDocument.readableNullValues(SyncDocument.canonicalize(root.getAsJsonObject("document"))));
+        return new Gson().fromJson(root, SyncReplica.class);
+    }
 
     public boolean needsResetConsent(SyncDocument remote) {
         return remote != null && !remote.reset.isEmpty() && !remote.reset.equals(acceptedReset);
@@ -28,7 +61,7 @@ public final class SyncReplica {
             entry.modified = next(now);
             entry.sequence = clock;
             // 使用实际观看时间，避免延迟扫描改变观看顺序。
-            if ("history".equals(entry.kind) && row.getValue().has("watchedAt")) {
+            if (("history".equals(entry.kind) || EpisodeProgress.KIND.equals(entry.kind)) && row.getValue().has("watchedAt")) {
                 entry.modified = Math.min(now, row.getValue().get("watchedAt").getAsLong());
             }
             entry.device = device;
@@ -36,6 +69,7 @@ public final class SyncReplica {
             entry.value = old != null && old.value != null ? old.value.deepCopy() : new JsonObject();
             row.getValue().entrySet().forEach(field -> entry.value.add(field.getKey(), field.getValue().deepCopy()));
             document.records.put(key, entry);
+            localRevision++;
         }
         for (String key : observed.keySet()) {
             if (current.containsKey(key)) continue;
@@ -48,6 +82,7 @@ public final class SyncReplica {
             deleted.sequence = clock;
             deleted.device = device;
             document.records.put(key, deleted);
+            localRevision++;
         }
         setObserved(current);
     }

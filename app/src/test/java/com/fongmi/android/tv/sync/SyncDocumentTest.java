@@ -49,6 +49,14 @@ public class SyncDocumentTest {
         assertEquals(gson.toJson(SyncDocument.merge(a, b)), gson.toJson(SyncDocument.merge(b, a)));
         assertEquals(gson.toJson(a), gson.toJson(SyncDocument.merge(a, a)));
     }
+    @Test public void duplicateVersionFallbackUsesCanonicalObjectOrderAcrossPlatforms() {
+        SyncDocument a = document(100, 0, "same"), b = document(100, 0, "same");
+        JsonObject av = new JsonObject(); av.addProperty("z", 0); av.addProperty("a", 1);
+        JsonObject bv = new JsonObject(); bv.addProperty("a", 2); bv.addProperty("z", 0);
+        a.records.get(KEY).value = av; b.records.get(KEY).value = bv;
+        assertEquals(2, SyncDocument.merge(a, b).records.get(KEY).value.get("a").getAsInt());
+        assertEquals(2, SyncDocument.merge(b, a).records.get(KEY).value.get("a").getAsInt());
+    }
     @Test public void identityMatchesCrossPlatformUtf8Fixture() {
         assertEquals("9039481f690907dc08356d94c53835454fa5adc0e402964c9108e00c86a653d0", SyncDocument.identity("source", "0", "https://example.test/影视?a=1&b=2"));
     }
@@ -95,5 +103,27 @@ public class SyncDocumentTest {
     }
     @Test(expected = IllegalArgumentException.class) public void differentEpochsCannotMerge() {
         SyncDocument.merge(newEmpty("old"), newEmpty("new"));
+    }
+    @Test public void knownR8DocumentAndReplicaAreRecoveredWithoutDroppingValues() {
+        String key = SyncDocument.identity("future", "synthetic");
+        String doc = "{\"a\":\"12345678-1234-1234-1234-123456789abc\",\"b\":\"merge\",\"c\":\"\",\"d\":{\"" + key + "\":{\"a\":\"future\",\"b\":100,\"c\":1,\"d\":\"test-device\",\"e\":false,\"f\":{\"opaque\":\"synthetic\"}}}}";
+        SyncDocument parsed = SyncDocument.parse(doc);
+        assertEquals("synthetic", parsed.records.get(key).value.get("opaque").getAsString());
+        JsonObject canonical = new Gson().toJsonTree(parsed).getAsJsonObject();
+        assertEquals(1, canonical.get("schema").getAsInt());
+        assertTrue(canonical.has("records"));
+        assertFalse(canonical.has("d"));
+        String local = "{\"a\":" + doc + ",\"b\":{},\"c\":\"ack\",\"d\":false,\"e\":\"\",\"f\":100}";
+        SyncReplica replica = SyncReplica.parse(local);
+        replica.document.validate();
+        assertEquals("ack", replica.acknowledgedEpoch);
+        assertEquals(100, replica.clock);
+        assertEquals(1, replica.document.records.size());
+    }
+    @Test public void unknownShortObjectCannotBecomeAnEmptyReplica() {
+        try { SyncReplica.parse("{}"); fail("必须拒绝不完整本地状态"); }
+        catch (IllegalArgumentException expected) { }
+        try { SyncDocument.parse("{\"a\":\"not-an-epoch\",\"b\":\"merge\",\"c\":\"\",\"d\":{}}"); fail("必须拒绝歧义格式"); }
+        catch (IllegalArgumentException expected) { }
     }
 }

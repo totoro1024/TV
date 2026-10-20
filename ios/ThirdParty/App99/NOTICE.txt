@@ -1,0 +1,5 @@
+App99Client.swift adapts App99.js and the algorithm/tables from _fty.js.
+https://github.com/jo32/tvbox-silicon
+Commit c28c27b98e2c18799a47b5db1527c2e59780cc96
+Copyright (C) 2026 jo32 and Yingxia contributors. GPL-3.0-only.
+Includes the upstream public App99 configuration fallback for its encrypted fingerprint. No user Cookie, WebDAV password or personal Token included.

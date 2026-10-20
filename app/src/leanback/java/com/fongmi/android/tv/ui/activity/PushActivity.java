@@ -13,8 +13,6 @@ import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.ActivityPushBinding;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.ui.base.BaseActivity;
-import com.fongmi.android.tv.utils.QRCode;
-import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Sniffer;
 import com.fongmi.android.tv.utils.Util;
 
@@ -43,8 +41,7 @@ public class PushActivity extends BaseActivity {
 
     @Override
     protected void initView(Bundle savedInstanceState) {
-        mBinding.code.setImageBitmap(QRCode.getBitmap(Server.get().getAddress(getTab()), 250, 1));
-        mBinding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()));
+        com.fongmi.android.tv.utils.RemoteInputQr.bind(mBinding.code, mBinding.info, 250);
     }
 
     @Override

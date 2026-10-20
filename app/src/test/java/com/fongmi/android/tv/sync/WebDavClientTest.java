@@ -18,6 +18,51 @@ public class WebDavClientTest {
     }
     @After public void stop() { server.stop(); }
 
+    @Test public void userDirectoryIsOptionalAndValidated() throws Exception {
+        assertEquals(server.address(), WebDavClient.directoryAddress(server.address(), ""));
+        assertEquals(server.address() + "family/long/", WebDavClient.directoryAddress(server.address(), "family/long"));
+        for (String bad : new String[]{"../bob", "%2e%2e", "https://other.test", "a?b", "a\\b"}) {
+            try { WebDavClient.directoryAddress(server.address(), bad); fail("应拒绝无效目录"); }
+            catch (java.io.IOException expected) { }
+        }
+    }
+    @Test public void separateUsersAndMissingParents() throws Exception {
+        WebDavClient alice = new WebDavClient(server.address() + "dav/alice/", "test", "test-only");
+        WebDavClient bob = new WebDavClient(server.address() + "dav/bob/", "test", "test-only");
+        alice.ensureFolder(); bob.ensureFolder(); alice.ensureFolder();
+        alice.write(new SyncDocument(), alice.read());
+        assertNotNull(alice.read().document);
+        assertNull(bob.read().document);
+        assertTrue(server.directories.contains("/dav/alice/fongmi-sync-v1/"));
+        assertTrue(server.directories.contains("/dav/bob/fongmi-sync-v1/"));
+    }
+    @Test public void apacheTransientWeakEtagProbeIsRetried() throws Exception {
+        server.weakFirstRead = true;
+        client.test();
+        assertTrue(files.isEmpty());
+    }
+    @Test public void apacheTransientWeakEtagReadBecomesSafeForConditionalWrite() throws Exception {
+        server.weakFirstRead = true;
+        client.ensureFolder(); client.write(new SyncDocument(), client.read());
+        WebDavClient.Snapshot value = client.read();
+        assertFalse(value.etag.startsWith("W/"));
+        assertEquals(0, server.notModified);
+        value.document.mode = "replace";
+        client.write(value.document, value);
+        WebDavClient other = new WebDavClient(server.address(), "test", "test-only");
+        assertEquals("replace", other.read().document.mode);
+        try { client.write(value.document, value); fail("旧版本必须仍被拒绝"); }
+        catch (WebDavClient.Conflict expected) { }
+    }
+    @Test public void permanentlyWeakEtagStillCannotOverwriteData() throws Exception {
+        client.ensureFolder(); client.write(new SyncDocument(), client.read());
+        server.alwaysWeak = true;
+        WebDavClient.Snapshot before = client.read();
+        assertTrue(before.etag.startsWith("W/"));
+        try { client.write(before.document, before); fail("不能将弱 ETag 当作强 ETag 写入"); }
+        catch (java.io.IOException expected) { assertTrue(expected.getMessage().contains("强 ETag")); }
+        assertEquals(1, server.writes);
+    }
     @Test public void connectionProbeLeavesNoFiles() throws Exception { client.test(); assertTrue(files.isEmpty()); }
     @Test public void roundTripAndStaleWriterProtection() throws Exception {
         client.ensureFolder(); WebDavClient.Snapshot absent = client.read(); assertNull(absent.document);

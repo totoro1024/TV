@@ -29,6 +29,12 @@ public abstract class BaseBottomSheetDialog extends BottomSheetDialogFragment {
         }
     };
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (getDialog() != null) com.fongmi.android.tv.server.process.RemoteInput.attach(getDialog().getWindow());
+    }
+
     protected abstract ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container);
 
     @NonNull

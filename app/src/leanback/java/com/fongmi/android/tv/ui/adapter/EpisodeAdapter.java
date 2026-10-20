@@ -2,13 +2,13 @@ package com.fongmi.android.tv.ui.adapter;
 
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.bean.Episode;
 import com.fongmi.android.tv.databinding.AdapterEpisodeBinding;
-import com.fongmi.android.tv.utils.ResUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,14 +17,12 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
 
     private final OnClickListener mListener;
     private final List<Episode> mItems;
-    private final int maxWidth;
     private int nextFocusDown;
     private int nextFocusUp;
 
     public EpisodeAdapter(OnClickListener listener) {
         mListener = listener;
         mItems = new ArrayList<>();
-        maxWidth = ResUtil.getScreenWidth() - ResUtil.dp2px(48);
     }
 
     public void addAll(List<Episode> items) {
@@ -84,9 +82,8 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.ViewHold
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Episode item = mItems.get(position);
-        holder.binding.text.setMaxWidth(maxWidth);
-        holder.binding.text.setNextFocusUpId(nextFocusUp);
-        holder.binding.text.setNextFocusDownId(nextFocusDown);
+        holder.binding.text.setNextFocusUpId(position < 2 ? nextFocusUp : View.NO_ID);
+        holder.binding.text.setNextFocusDownId(position / 2 == (getItemCount() - 1) / 2 ? nextFocusDown : View.NO_ID);
         holder.binding.text.setSelected(item.isSelected());
         holder.binding.text.setText(item.getDesc().concat(item.getName()));
         holder.binding.getRoot().setOnClickListener(v -> mListener.onItemClick(item));

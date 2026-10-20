@@ -169,6 +169,16 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
     private void setAdapter(Result result) {
         boolean first = mScroller.first();
         boolean flag = mExtends.isEmpty();
+        if (first && getSite().getApi().equals("csp_MyDriveGuard") && getTypeId().equals("peizhi") &&
+                result.getList().stream().noneMatch(v -> v.getId().equals("native-cloud-login"))) {
+            List<Vod> items = new ArrayList<>(result.getList());
+            Vod login = new Vod();
+            login.setId("native-cloud-login");
+            login.setName("统一扫码登录");
+            login.setPic("file:///android_asset/cloud-login.png");
+            items.add(0, login);
+            result.setList(items);
+        }
         int size = result.getList().size();
         mBinding.progressLayout.showContent(first & flag, size);
         mBinding.swipeLayout.setRefreshing(false);
@@ -254,6 +264,10 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
 
     @Override
     public void onItemClick(Vod item) {
+        if (getSite().getApi().equals("csp_MyDriveGuard") && item.getId().equals("native-cloud-login")) {
+            com.fongmi.android.tv.ui.dialog.CloudLoginDialog.show(requireActivity());
+            return;
+        }
         if (item.isAction()) {
             mViewModel.action(getKey(), item.getAction());
         } else if (item.isFolder()) {

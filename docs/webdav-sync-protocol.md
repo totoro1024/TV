@@ -12,14 +12,15 @@ Android 与未来 iOS 客户端共用本协议。WebDAV 目录由用户提供，
 
 时间与进度单位均为毫秒。`modified` 为变更时间；观看记录使用实际 `watchedAt`，避免延迟扫描把旧观看误判为新观看。`sequence` 为本设备递增逻辑序号。删除记录保留身份、版本及 `deleted=true`，不携带 value。首版不回收删除标记，以支持长期离线设备。
 
-同身份记录按 `(modified, device, sequence, deleted, value)` 确定胜出者：数值或字符串较大者优先，删除在相同版本下优先。value 仅为损坏或重复版本的最终确定性裁决；正常客户端每次变更应更新版本。比较不取最大播放进度，允许回看。
+同身份记录按 `(modified, device, sequence, deleted, value)` 确定胜出者：数值或字符串较大者优先，删除在相同版本下优先。value 仅为损坏或重复版本的最终确定性裁决，对象键递归按UTF-16排序后比较紧凑JSON，数组顺序及数字原文保留；正常客户端每次变更应更新版本。比较不取最大播放进度，允许回看。
 
 ## 稳定身份
 
 依次对每个身份分量进行 UTF-8 编码，前置该分量字节长度的 4 字节无符号大端整数；将所有分量的长度与内容串联后做 SHA-256，输出小写十六进制。不做 Unicode 或 URL 归一化。此规则不依赖 Android/iOS 各自 JSON 编码器的转义方式。
 
 - 源：`["source", "0或1", "原始源URL"]`，0 为影视，1 为直播。URL 不作大小写、参数或尾斜杠归一化。
-- 观看记录：`["history", "源身份哈希", "站点key", "影片id"]`。
+- 观看记录：`["history", "源身份哈希", "站点key", "影片id"]`，只承担节目首页卡片及最近观看集数。
+- 分集进度：`["episodeProgress", "源身份哈希", "站点key", "影片id", "剧集身份哈希"]`。普通剧集身份为 `["episode", "线路", "集名"]`，集名为空时以播放条目地址替代；夸克 JSON 条目使用 `["quark", "sId", "fid"]`，忽略刷新令牌、线路别名和文件名展示差异。
 - 影视收藏：`["favorite", "vod", "源身份哈希", "站点key", "影片id"]`。
 - 直播收藏：`["favorite", "live", "频道key"]`，延续上游以频道名称为收藏 key 的语义。
 - 站点搜索偏好：`["site", "站点key"]`，延续上游按站点 key 全局存储的语义。
@@ -35,6 +36,7 @@ Android 的 Config.id 不出现在协议内。导入时先创建/定位源，再
 | --- | --- |
 | source | url、type、name、home |
 | history | source、site、vod、name、picture、line、episode、episodeUrl、watchedAt、positionMs、durationMs、openingMs、endingMs、reverseSort、reversePlay |
+| episodeProgress | 与 history 相同，每集单独一条记录；只恢复该集 positionMs/durationMs，不覆盖节目级片头片尾与排序偏好 |
 | favorite | type、name、picture、siteName、addedAt；影视另含 source/site/vod，直播另含 channel |
 | site | site、searchable（0 不可搜索，1 开启，2 关闭） |
 | preference | name、type、url，仅 activeSource0/activeSource1 |
@@ -94,3 +96,22 @@ value 包含 `adapter`、`prefs`、`defaults`、`files`，其中 files 的值为
 Kindle重新扫码后，确认quark_ck与quarkSt持久化，远端state.json的Cookie与Kindle逐值一致（只输出布尔比较结果）。vmq读取同一WebDAV后，Cookie及配套密钥与Kindle一致。接收端冷启动后，源插件的“登录自己网盘”面板显示绿色“我的夸父－已登录”，没有在接收端再次扫码。面板另有独立的启用开关；接收端启用并冷启动后，出现“夸父”分类。接收端“夸父”分类成功加载真实网盘目录，确认登录态可用于网盘API访问。以上不包含阿里/UC验证，也不等同所有网盘视频播放已验证。
 
 双模拟器存在MuMu自身22000无响应问题，重启单个故障实例后继续；双同名进程的界面控制暂通过关闭已保存的发送端实例、单独查看接收端解决，验证后恢复发送端。
+
+
+## 错误 Android 混淆布局的定向兼容
+
+曾有发布构建未保留 Gson 模型字段：文档 schema 被优化移除，epoch/mode/reset/records 被改为 a/b/c/d；记录 kind/modified/sequence/device/deleted/value 被改为 a/b/c/d/e/f。本映射由对应 R8 mapping.txt 核对，不能推广为任意短键 JSON 的解码规则。
+
+两端只在没有 schema、没有混杂的标准字段、代次为 UUID、布局及字段类型匹配时转换为标准 v1，再执行原验证。未知版本、歧义布局或无效记录仍被拒绝，不将异常响应当作空云端。未知扩展字段及原数值保留。
+
+Android 发布规则保留 SyncDocument、Entry、SyncReplica 的字段及默认值，同时迁移旧本地副本结构；更新后写入标准协议。iOS 读取旧文件后使用标准内部模型，但若远端仍为该旧布局，条件更新暂沿用旧线格式；当 Android 修复版写回标准字段后，iOS 自动继续标准格式，避免在电视升级前单方面改变云端布局。更新所有 Android 同步设备后再恢复跨设备同步，无需清空文件。
+
+发布验证需检查实际缩减后的 APK，不能只依赖未混淆 JVM 单元测试：`python3 tools/check-sync-apk-fields.py <APK路径>`。本次真实远端只做 GET 校验，未执行 PUT、覆盖或清空。
+
+## 分集进度兼容
+
+schema 仍为 1，以新增 kind 扩展；两端均需更新才能分别恢复每集进度。历史首页继续仅展示 history，不展示 episodeProgress。各集独立参与现有 LWW 合并；同一集按最近观看时间取值，重看时允许进度变小，不取最大进度。不同集的并发修改互不覆盖。
+
+升级时保留旧 history 中最后一集的有效进度，其余早已被覆盖的集数无法恢复。首次分集保存不改变旧进度的观看时间。删除节目历史时一并删除所属分集；删除源、覆盖本地和清空远端沿用现有同步语义。
+
+Android 新增 Room 35→36 迁移，仅创建分集表和索引，原 History 数据保留；分集表外键关联节目历史，首页不增加重复行。共用跨端样例见 `docs/fixtures/episode-progress-v1.json`，Android 与 Swift 测试同时读取。

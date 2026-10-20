@@ -80,3 +80,8 @@
 -keep class com.google.zxing.qrcode.QRCodeReader { *; }
 -keep class com.google.zxing.qrcode.QRCodeWriter { *; }
 -keep class com.google.zxing.qrcode.decoder.ErrorCorrectionLevel { *; }
+
+# WebDAV 的 JSON 字段属于跨设备协议，Gson 反射依赖字段名及默认值，禁止 R8 重命名/移除。
+-keep class com.fongmi.android.tv.sync.SyncDocument { *; }
+-keep class com.fongmi.android.tv.sync.SyncDocument$Entry { *; }
+-keep class com.fongmi.android.tv.sync.SyncReplica { *; }

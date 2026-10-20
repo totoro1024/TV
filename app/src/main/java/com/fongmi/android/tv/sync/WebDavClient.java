@@ -23,6 +23,7 @@ public final class WebDavClient {
             .callTimeout(45, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build();
     private final HttpUrl folder;
     private final String authorization;
+    private Snapshot cached;
 
     public static final class Snapshot {
         public final SyncDocument document;
@@ -43,22 +44,81 @@ public final class WebDavClient {
         authorization = Credentials.basic(user, password, java.nio.charset.StandardCharsets.UTF_8);
     }
 
+    public static String directoryAddress(String address, String directory) throws IOException {
+        if (directory.trim().isEmpty()) return address.trim();
+        HttpUrl base = HttpUrl.parse(address.trim());
+        if (base == null || !base.username().isEmpty() || !base.password().isEmpty()
+                || base.query() != null || base.fragment() != null)
+            throw new IOException("请填写有效的服务器目录地址");
+        HttpUrl.Builder result = base.newBuilder();
+        if (base.pathSegments().get(base.pathSize() - 1).isEmpty()) result.removePathSegment(base.pathSize() - 1);
+        boolean found = false;
+        for (String part : directory.trim().split("/")) {
+            if (part.isEmpty()) continue;
+            if (part.equals(".") || part.equals("..") || part.matches(".*[\\\\%:?#\\p{Cntrl}].*"))
+                throw new IOException("用户目录请填写相对目录名，例如 long 或 family/long");
+            result.addPathSegment(part); found = true;
+        }
+        if (!found) throw new IOException("请填写有效的用户目录名称");
+        return result.addPathSegment("").build().toString();
+    }
+
     private Request.Builder request(String name) {
         return new Request.Builder().url(folder.newBuilder().addPathSegment(name).build())
                 .header("Authorization", authorization).header("Cache-Control", "no-cache");
     }
 
     public void ensureFolder() throws IOException {
-        Request req = new Request.Builder().url(folder).header("Authorization", authorization)
+        ensureFolder(folder);
+    }
+
+    private void ensureFolder(HttpUrl directory) throws IOException {
+        Request req = new Request.Builder().url(directory).header("Authorization", authorization)
                 .method("MKCOL", RequestBody.create(new byte[0], null)).build();
+        int code;
         try (Response r = HTTP.newCall(req).execute()) {
-            if (!(r.isSuccessful() || r.code() == 405)) fail(r.code());
+            code = r.code();
+            if (r.isSuccessful() || code == 405) return;
+        }
+        if (code != 409) { fail(code); return; }
+        HttpUrl.Builder parent = directory.newBuilder();
+        int last = directory.pathSize() - 1;
+        if (directory.pathSegments().get(last).isEmpty()) parent.removePathSegment(last--);
+        if (last < 0) { fail(code); return; }
+        parent.removePathSegment(last).addPathSegment("");
+        HttpUrl parentUrl = parent.build();
+        if (parentUrl.equals(directory) || parentUrl.encodedPath().equals("/")) { fail(code); return; }
+        ensureFolder(parentUrl);
+        try (Response r = HTTP.newCall(req).execute()) {
+            if (!r.isSuccessful() && r.code() != 405) fail(r.code());
         }
     }
 
+    private static boolean strong(String tag) {
+        return tag != null && !tag.startsWith("W/");
+    }
+
+    private static void awaitStrongTag() throws IOException {
+        try { Thread.sleep(1100); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException("同步已中断"); }
+    }
+
     public Snapshot read() throws IOException {
-        try (Response r = HTTP.newCall(request("state.json").get().build()).execute()) {
-            if (r.code() == 404) return new Snapshot(null, null);
+        for (int attempt = 0; ; attempt++) {
+            Snapshot value = readOnce();
+            if (value.document == null || value.etag == null || strong(value.etag) || attempt >= 2) return value;
+            // Apache 刚写入文件时会短暂返回弱 ETag；必须重读正文及版本，不能去掉 W/ 冒充强版本。
+            cached = null;
+            awaitStrongTag();
+        }
+    }
+
+    private Snapshot readOnce() throws IOException {
+        Request.Builder req = request("state.json");
+        if (cached != null && strong(cached.etag)) req.header("If-None-Match", cached.etag);
+        try (Response r = HTTP.newCall(req.get().build()).execute()) {
+            if (r.code() == 304 && cached != null) return new Snapshot(cached.document.copy(), cached.etag);
+            if (r.code() == 404) { cached = null; return new Snapshot(null, null); }
             if (!r.isSuccessful()) fail(r.code());
             if (r.body() == null || r.body().contentLength() > MAX_BYTES) throw new IOException("同步文件过大或为空");
             okio.Buffer buffer = new okio.Buffer();
@@ -67,7 +127,9 @@ public final class WebDavClient {
             byte[] bytes = buffer.readByteArray();
             if (bytes.length > MAX_BYTES) throw new IOException("同步文件超过 8 MB");
             try {
-                return new Snapshot(SyncDocument.parse(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)), r.header("ETag"));
+                SyncDocument document = SyncDocument.parse(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+                cached = new Snapshot(document.copy(), r.header("ETag"));
+                return new Snapshot(document, r.header("ETag"));
             } catch (RuntimeException e) { throw new IOException(e.getMessage()); }
         }
     }
@@ -98,10 +160,15 @@ public final class WebDavClient {
                     .put(RequestBody.create("{}", JSON)).build()).execute()) {
                 if (!r.isSuccessful()) fail(r.code());
             }
-            try (Response r = HTTP.newCall(request(name).get().build()).execute()) {
-                if (!r.isSuccessful()) fail(r.code());
-                String tag = r.header("ETag");
-                if (tag == null || tag.startsWith("W/")) throw new IOException("服务器需要支持强 ETag");
+            for (int attempt = 0; ; attempt++) {
+                String tag;
+                try (Response r = HTTP.newCall(request(name).get().build()).execute()) {
+                    if (!r.isSuccessful()) fail(r.code());
+                    tag = r.header("ETag");
+                }
+                if (strong(tag)) break;
+                if (tag == null || attempt >= 2) throw new IOException("服务器未提供可用的强 ETag，请稍后重试或检查 WebDAV 服务");
+                awaitStrongTag();
             }
             try (Response r = HTTP.newCall(request(name).header("If-Match", "\"invalid-probe-version\"")
                     .put(RequestBody.create("{}", JSON)).build()).execute()) {

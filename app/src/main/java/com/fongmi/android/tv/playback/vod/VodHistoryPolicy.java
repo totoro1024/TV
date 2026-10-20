@@ -73,12 +73,14 @@ public class VodHistoryPolicy {
 
     public void updateEpisode(History history, Flag flag, Episode episode) {
         if (history == null || flag == null || episode == null) return;
-        boolean match = episode.matchesName(history.getEpisode());
+        boolean match = com.fongmi.android.tv.sync.EpisodeProgress.key(history.getVodFlag() == null ? "" : history.getVodFlag(), history.getVodRemarks(), history.getEpisodeUrl())
+                .equals(com.fongmi.android.tv.sync.EpisodeProgress.key(flag.getFlag(), episode.getName(), episode.getUrl()));
         if (!match) history.setPosition(C.TIME_UNSET);
         if (!match) history.setDuration(C.TIME_UNSET);
         history.setVodFlag(flag.getFlag());
         history.setVodRemarks(episode.getName());
         history.setEpisodeUrl(episode.getUrl());
+        if (!match) com.fongmi.android.tv.sync.EpisodeProgressStore.restore(history);
     }
 
     public void updateProgress(History history, long time, long position, long duration) {
@@ -88,7 +90,8 @@ public class VodHistoryPolicy {
 
     private void applyProgress(History history, long time, long position, long duration) {
         if (history == null || position < 0 || duration <= 0) return;
-        history.setCreateTime(time);
+        // 暂停和退出时没有移动的位置不算新观看，避免覆盖另一台设备的较新进度。
+        if (history.getPosition() != position) history.setCreateTime(time);
         history.setPosition(position);
         history.setDuration(duration);
     }

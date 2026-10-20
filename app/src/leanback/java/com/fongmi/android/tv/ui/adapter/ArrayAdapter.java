@@ -18,6 +18,7 @@ public class ArrayAdapter extends RecyclerView.Adapter<ArrayAdapter.ViewHolder> 
 
     private final OnClickListener mListener;
     private final List<String> mItems;
+    private int nextFocusUp;
     private final String backward;
     private final String forward;
     private final String reverse;
@@ -41,6 +42,11 @@ public class ArrayAdapter extends RecyclerView.Adapter<ArrayAdapter.ViewHolder> 
         notifyDataSetChanged();
     }
 
+    public void setNextFocusUp(int id) {
+        nextFocusUp = id;
+        notifyDataSetChanged();
+    }
+
     @Override
     public int getItemCount() {
         return mItems.size();
@@ -56,6 +62,7 @@ public class ArrayAdapter extends RecyclerView.Adapter<ArrayAdapter.ViewHolder> 
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         String text = mItems.get(position);
         holder.binding.text.setText(text);
+        holder.binding.text.setNextFocusUpId(nextFocusUp);
         if (text.equals(reverse)) holder.binding.getRoot().setOnClickListener(view -> mListener.onRevSort());
         else if (text.equals(backward) || text.equals(forward)) holder.binding.getRoot().setOnClickListener(view -> mListener.onRevPlay(holder.binding.text));
         else holder.binding.getRoot().setOnClickListener(null);

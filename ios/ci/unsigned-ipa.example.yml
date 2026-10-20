@@ -1,0 +1,23 @@
+# 如需 GitHub 构建，可在自己的仓库把本文件安装到 .github/workflows/ios-unsigned.yml。
+# 此文件只是可审阅模板，尚未安装或运行，不需要 Apple 账号或签名证书。
+name: iPhone 未签名 IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: 验证核心
+        run: swift run --package-path ios TVCoreChecks
+      - name: 打包未签名 IPA
+        run: bash ios/scripts/build-unsigned-ipa.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TVWebDAV-unsigned
+          path: |
+            ios/build/TVWebDAV-0.1.0-unsigned.ipa
+            ios/build/SHA256.txt

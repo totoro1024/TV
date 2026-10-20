@@ -15,7 +15,15 @@ import java.util.Map;
 import java.util.Set;
 
 /** 只访问适配器白名单中的插件配置，不扫描或搬运整个私有目录。 */
-final class CloudConfigStore {
+public final class CloudConfigStore {
+    public static void saveLogin(String key, String cookie) throws IOException {
+        if (!Set.of("quark_ck", "uc_ck").contains(key)) throw new IOException("不支持的网盘");
+        String encoded = PluginCookieCodec.encode(cookie);
+        if (!App.get().getSharedPreferences("spUtils", 0).edit().putString(key, encoded).commit())
+            throw new IOException("网盘登录保存失败");
+        if (!Prefers.getPrefers().edit().remove(key).commit())
+            throw new IOException("网盘登录保存失败，请重试");
+    }
     private SharedPreferences prefs() { return App.get().getSharedPreferences("spUtils", 0); }
     private File file(String name) throws IOException {
         if (!CloudConfig.FILES.contains(name)) throw new IOException("不支持的网盘配置文件");

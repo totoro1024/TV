@@ -361,7 +361,10 @@ public class History implements Diffable<History> {
 
     public History save() {
         saveTime = System.currentTimeMillis();
-        AppDatabase.get().getHistoryDao().insertOrUpdate(this);
+        AppDatabase.get().runInTransaction(() -> {
+            AppDatabase.get().getHistoryDao().insertOrUpdate(this);
+            com.fongmi.android.tv.sync.EpisodeProgressStore.save(this);
+        });
         return this;
     }
 

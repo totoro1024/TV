@@ -2,6 +2,9 @@ package com.fongmi.android.tv.sync;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonNull;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -58,7 +61,8 @@ public final class SyncDocument {
     public static SyncDocument parse(String json) {
         SyncDocument d;
         try {
-            JsonObject root = new Gson().fromJson(json, JsonObject.class);
+            JsonObject root = canonicalize(new Gson().fromJson(json, JsonObject.class));
+            root = readableNullValues(root);
             if (root == null || !root.has("schema") || !root.has("epoch") || !root.has("mode") || !root.has("records"))
                 throw new IllegalArgumentException();
             d = new Gson().fromJson(root, SyncDocument.class);
@@ -68,6 +72,58 @@ public final class SyncDocument {
         d.validate();
         CloudConfig.discardBootstrap(d);
         return d;
+    }
+
+    // Gson 的 JsonObject 字段适配器不接受显式 JsonNull；缺省值仍为 Java null。
+    // 只去掉空 value 字段，保留整条删除记录及其版本，避免复活已删除内容。
+    static JsonObject readableNullValues(JsonObject root) {
+        if (root == null || !root.has("records") || !root.get("records").isJsonObject()) return root;
+        JsonObject result = root.deepCopy();
+        for (JsonElement element : result.getAsJsonObject("records").asMap().values()) {
+            if (!element.isJsonObject()) continue;
+            JsonObject entry = element.getAsJsonObject();
+            if (entry.has("value") && entry.get("value").isJsonNull()) entry.remove("value");
+        }
+        return result;
+    }
+
+    /** 对照已发布 R8 mapping 的恢复，仅识别完整旧布局，绝不猜测未知版本。 */
+    static JsonObject canonicalize(JsonObject root) {
+        if (root == null || root.has("schema")) return root;
+        if (root.has("epoch") || root.has("mode") || root.has("reset") || root.has("records") ||
+                !string(root, "a") || !string(root, "b") || !string(root, "c") || !root.has("d") || !root.get("d").isJsonObject())
+            return root;
+        String epoch = root.get("a").getAsString();
+        if (!UUID.fromString(epoch).toString().equalsIgnoreCase(epoch) ||
+                !("merge".equals(root.get("b").getAsString()) || "replace".equals(root.get("b").getAsString()) || "reset".equals(root.get("b").getAsString())))
+            throw new IllegalArgumentException("旧版同步格式无效");
+        JsonObject result = rename(root, new String[][]{{"a","epoch"},{"b","mode"},{"c","reset"},{"d","records"}});
+        result.addProperty("schema", VERSION);
+        JsonObject records = new JsonObject();
+        for (Map.Entry<String, JsonElement> row : root.getAsJsonObject("d").entrySet()) {
+            if (!row.getValue().isJsonObject()) throw new IllegalArgumentException("旧版同步记录无效");
+            JsonObject entry = row.getValue().getAsJsonObject();
+            if (!string(entry, "a") || !number(entry, "b") || !number(entry, "c") || !string(entry, "d") ||
+                    !entry.has("e") || !entry.get("e").isJsonPrimitive() || !entry.get("e").getAsJsonPrimitive().isBoolean())
+                throw new IllegalArgumentException("旧版同步记录无效");
+            records.add(row.getKey(), rename(entry, new String[][]{{"a","kind"},{"b","modified"},{"c","sequence"},{"d","device"},{"e","deleted"},{"f","value"}}));
+        }
+        result.add("records", records);
+        return result;
+    }
+    static boolean string(JsonObject root, String key) {
+        return root.has(key) && root.get(key).isJsonPrimitive() && root.get(key).getAsJsonPrimitive().isString();
+    }
+    static boolean number(JsonObject root, String key) {
+        return root.has(key) && root.get(key).isJsonPrimitive() && root.get(key).getAsJsonPrimitive().isNumber();
+    }
+    static JsonObject rename(JsonObject root, String[][] fields) {
+        JsonObject result = root.deepCopy();
+        for (String[] field : fields) {
+            if (result.has(field[1])) throw new IllegalArgumentException("旧版同步字段冲突");
+            if (result.has(field[0])) result.add(field[1], result.remove(field[0]));
+        }
+        return result;
     }
 
     public void validate() {
@@ -114,6 +170,22 @@ public final class SyncDocument {
         if (sequence != 0) return sequence;
         if (a.deleted != b.deleted) return a.deleted ? 1 : -1;
         // 即使出现损坏或重复版本，也采用确定性规则裁决。
-        return String.valueOf(a.value).compareTo(String.valueOf(b.value));
+        return ordered(a.value).toString().compareTo(ordered(b.value).toString());
     }
+    // 对象键按 UTF-16 排序，避免 Android / iOS 编码器的字段顺序改变最终裁决。
+    private static JsonElement ordered(JsonElement value) {
+        if (value == null) return JsonNull.INSTANCE;
+        if (value.isJsonObject()) {
+            JsonObject result = new JsonObject();
+            new java.util.TreeSet<>(value.getAsJsonObject().keySet()).forEach(key -> result.add(key, ordered(value.getAsJsonObject().get(key))));
+            return result;
+        }
+        if (value.isJsonArray()) {
+            JsonArray result = new JsonArray();
+            value.getAsJsonArray().forEach(item -> result.add(ordered(item)));
+            return result;
+        }
+        return value;
+    }
+
 }

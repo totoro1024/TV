@@ -18,7 +18,7 @@ import java.util.TreeMap;
 
 /** 显式列出跨平台字段，数据库编号、配置缓存及设备设置留在本机。 */
 public final class SyncStore {
-    public static final Set<String> KINDS = Set.of("source", "history", "favorite", "site", "preference", CloudConfig.KIND);
+    public static final Set<String> KINDS = Set.of("source", "history", EpisodeProgress.KIND, "favorite", "site", "preference", CloudConfig.KIND);
     public static final class Values {
         public final Map<String, JsonObject> values = new TreeMap<>();
         public final Map<String, String> kinds = new TreeMap<>();
@@ -47,15 +47,21 @@ public final class SyncStore {
                 String source = sources.get(h.getCid());
                 String[] key = h.getKey().split(AppDatabase.SYMBOL, -1);
                 if (source == null || key.length != 3) continue;
-                JsonObject v = new JsonObject();
-                v.addProperty("source", source); v.addProperty("site", key[0]); v.addProperty("vod", key[1]);
-                v.addProperty("name", text(h.getVodName())); v.addProperty("picture", text(h.getVodPic()));
-                v.addProperty("line", text(h.getVodFlag())); v.addProperty("episode", h.getVodRemarks());
-                v.addProperty("episodeUrl", h.getEpisodeUrl()); v.addProperty("watchedAt", h.getCreateTime());
-                v.addProperty("positionMs", h.getPosition()); v.addProperty("durationMs", h.getDuration());
-                v.addProperty("openingMs", h.getOpening()); v.addProperty("endingMs", h.getEnding());
-                v.addProperty("reverseSort", h.isRevSort()); v.addProperty("reversePlay", h.isRevPlay());
+                JsonObject v = EpisodeProgressStore.value(h, source);
                 result.put("history", v, "history", source, key[0], key[1]);
+            }
+            for (com.fongmi.android.tv.bean.EpisodeProgressRecord row : db.getEpisodeProgressDao().findAll()) {
+                JsonObject value = com.google.gson.JsonParser.parseString(row.value).getAsJsonObject();
+                if (!result.values.containsKey(EpisodeProgress.historyId(value))) continue;
+                result.values.put(row.key, value); result.kinds.put(row.key, EpisodeProgress.KIND);
+            }
+            // 升级前唯一保留的那一集也参与同步，不覆盖已经存在的分集记录。
+            for (History h : db.getHistoryDao().findAll()) {
+                String source = sources.get(h.getCid());
+                if (source == null || !h.canSave()) continue;
+                JsonObject value = EpisodeProgressStore.value(h, source);
+                String id = EpisodeProgress.id(value);
+                if (!result.values.containsKey(id)) { result.values.put(id, value); result.kinds.put(id, EpisodeProgress.KIND); }
             }
             for (Keep k : db.getKeepDao().findAll()) {
                 JsonObject v = new JsonObject();
@@ -123,12 +129,13 @@ public final class SyncStore {
                         expected = sourceId(str(v, "url"), type);
                         break;
                     }
-                    case "history": {
+                    case "history":
+                    case EpisodeProgress.KIND: {
                         requireSource(doc, str(v, "source"));
                         for (String key : new String[]{"name", "picture", "line", "episode", "episodeUrl", "site", "vod"}) str(v, key);
                         for (String key : new String[]{"watchedAt", "positionMs", "durationMs", "openingMs", "endingMs"}) v.get(key).getAsLong();
                         v.get("reverseSort").getAsBoolean(); v.get("reversePlay").getAsBoolean();
-                        expected = SyncDocument.identity("history", str(v, "source"), str(v, "site"), str(v, "vod"));
+                        expected = EpisodeProgress.KIND.equals(e.kind) ? EpisodeProgress.id(v) : SyncDocument.identity("history", str(v, "source"), str(v, "site"), str(v, "vod"));
                         break;
                     }
                     case "favorite": {
@@ -165,6 +172,65 @@ public final class SyncStore {
         // 源已删除时，应用数据会同时抑制其下的记录。
     }
 
+    /** 播放期间仅应用收藏；已有源、观看进度、插件及偏好不改动。 */
+    public void applyFavoritesDuringPlayback(SyncDocument document) {
+        validate(document);
+        AppDatabase db = AppDatabase.get();
+        db.runInTransaction(() -> {
+            Map<String, Integer> ids = new HashMap<>();
+            for (SyncDocument.Entry e : document.records.values()) {
+                if (e.deleted || !"favorite".equals(e.kind) || e.value.get("type").getAsInt() != 0) continue;
+                String id = str(e.value, "source");
+                SyncDocument.Entry source = document.records.get(id);
+                if (source.deleted || ids.containsKey(id)) continue;
+                JsonObject v = source.value;
+                Config c = db.getConfigDao().find(str(v, "url"), v.get("type").getAsInt());
+                if (c == null) {
+                    // 为跨源收藏补充必要的源记录，不切换当前使用的源。
+                    c = new Config(); c.setUrl(str(v, "url")); c.setType(v.get("type").getAsInt());
+                    c.setName(str(v, "name")); c.setHome(str(v, "home"));
+                    c.setId(Math.toIntExact(db.getConfigDao().insert(c)));
+                }
+                ids.put(id, c.getId());
+            }
+            removeFavorites(document, ids, db);
+            for (SyncDocument.Entry e : document.records.values()) {
+                if (!e.deleted && "favorite".equals(e.kind)) writeFavorite(e.value, ids, db);
+            }
+        });
+    }
+
+    private void removeFavorites(SyncDocument document, Map<String, Integer> ids, AppDatabase db) {
+        for (Keep k : db.getKeepDao().findAll()) {
+            String id;
+            if (k.getType() == 1) id = SyncDocument.identity("favorite", "live", k.getKey());
+            else {
+                Config c = db.getConfigDao().findById(k.getCid());
+                if (c == null || c.getType() > 1) continue;
+                String[] key = k.getKey().split(AppDatabase.SYMBOL, -1);
+                if (key.length != 3) continue;
+                id = SyncDocument.identity("favorite", "vod", sourceId(c.getUrl(), c.getType()), key[0], key[1]);
+            }
+            if (!active(document, id) || k.getType() == 0 && !ids.containsValue(k.getCid())) {
+                if (k.getType() == 1) db.getKeepDao().delete(k.getKey());
+                else db.getKeepDao().delete(k.getCid(), k.getKey());
+            }
+        }
+    }
+
+    private void writeFavorite(JsonObject v, Map<String, Integer> ids, AppDatabase db) {
+        int type = v.get("type").getAsInt();
+        if (type == 0 && !ids.containsKey(str(v, "source"))) return;
+        Keep k = new Keep(); k.setType(type); k.setVodName(str(v, "name")); k.setVodPic(str(v, "picture"));
+        k.setSiteName(str(v, "siteName")); k.setCreateTime(v.get("addedAt").getAsLong());
+        if (type == 0) {
+            int cid = ids.get(str(v, "source")); k.setCid(cid);
+            k.setKey(str(v, "site") + AppDatabase.SYMBOL + str(v, "vod") + AppDatabase.SYMBOL + cid);
+        } else k.setKey(str(v, "channel"));
+        db.getKeepDao().insertOrUpdate(k);
+    }
+
+
     public void apply(SyncDocument document) {
         validate(document);
         AppDatabase db = AppDatabase.get();
@@ -192,21 +258,7 @@ public final class SyncStore {
                 String id = SyncDocument.identity("history", sourceId(c.getUrl(), c.getType()), k[0], k[1]);
                 if (!active(document, id) || !ids.containsValue(c.getId())) db.getHistoryDao().delete(h.getCid(), h.getKey());
             }
-            for (Keep k : db.getKeepDao().findAll()) {
-                String id;
-                if (k.getType() == 1) id = SyncDocument.identity("favorite", "live", k.getKey());
-                else {
-                    Config c = db.getConfigDao().findById(k.getCid());
-                    if (c == null || c.getType() > 1) continue;
-                    String[] key = k.getKey().split(AppDatabase.SYMBOL, -1);
-                    if (key.length != 3) continue;
-                    id = SyncDocument.identity("favorite", "vod", sourceId(c.getUrl(), c.getType()), key[0], key[1]);
-                }
-                if (!active(document, id) || k.getType() == 0 && !ids.containsValue(k.getCid())) {
-                    if (k.getType() == 1) db.getKeepDao().delete(k.getKey());
-                    else db.getKeepDao().delete(k.getCid(), k.getKey());
-                }
-            }
+            removeFavorites(document, ids, db);
             for (SyncDocument.Entry e : document.records.values()) {
                 if (e.deleted) continue;
                 JsonObject v = e.value;
@@ -223,21 +275,27 @@ public final class SyncStore {
                     h.setRevPlay(v.get("reversePlay").getAsBoolean());
                     db.getHistoryDao().insertOrUpdate(h);
                 } else if ("favorite".equals(e.kind)) {
-                    int type = v.get("type").getAsInt();
-                    if (type == 0 && !ids.containsKey(str(v, "source"))) continue;
-                    Keep k = new Keep(); k.setType(type); k.setVodName(str(v, "name")); k.setVodPic(str(v, "picture"));
-                    k.setSiteName(str(v, "siteName")); k.setCreateTime(v.get("addedAt").getAsLong());
-                    if (type == 0) {
-                        int cid = ids.get(str(v, "source")); k.setCid(cid);
-                        k.setKey(str(v, "site") + AppDatabase.SYMBOL + str(v, "vod") + AppDatabase.SYMBOL + cid);
-                    } else k.setKey(str(v, "channel"));
-                    db.getKeepDao().insertOrUpdate(k);
+                    writeFavorite(e.value, ids, db);
                 } else if ("site".equals(e.kind)) {
                     Site site = new Site(); site.setKey(str(v, "site"));
                     // 保留独立的本机换源偏好。
                     for (Site existing : db.getSiteDao().findAll()) if (existing.getKey().equals(site.getKey())) site = existing;
                     site.setSearchable(v.get("searchable").getAsInt()); db.getSiteDao().insertOrUpdate(site);
                 }
+            }
+            for (com.fongmi.android.tv.bean.EpisodeProgressRecord row : db.getEpisodeProgressDao().findAll()) {
+                if (!active(document, row.key)) db.getEpisodeProgressDao().delete(row.key);
+            }
+            for (Map.Entry<String, SyncDocument.Entry> row : document.records.entrySet()) {
+                SyncDocument.Entry entry = row.getValue();
+                if (entry.deleted || !EpisodeProgress.KIND.equals(entry.kind)) continue;
+                JsonObject value = entry.value;
+                Integer cid = ids.get(str(value, "source"));
+                if (cid == null || !active(document, EpisodeProgress.historyId(value))) continue;
+                String parent = str(value, "site") + AppDatabase.SYMBOL + str(value, "vod") + AppDatabase.SYMBOL + cid;
+                com.fongmi.android.tv.bean.EpisodeProgressRecord progress = new com.fongmi.android.tv.bean.EpisodeProgressRecord();
+                progress.key = row.getKey(); progress.historyKey = parent; progress.value = value.toString();
+                db.getEpisodeProgressDao().insertOrUpdate(progress);
             }
             for (Config c : db.getConfigDao().findAll()) {
                 if (c.getType() <= 1 && !c.isEmpty() && !active(document, sourceId(c.getUrl(), c.getType())))
